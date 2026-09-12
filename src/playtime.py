@@ -63,7 +63,11 @@ def fetch_review_page(appid: int, cursor: str = "*", session: requests.Session |
     if path.exists():
         return json.loads(path.read_text(encoding="utf-8"))
 
-    _PACER.wait("reviews", config.REVIEW_DELAY_SECONDS)
+    # Same key as fetch_store on purpose: appreviews and appdetails are both
+    # store.steampowered.com, and a rate limit belongs to a host, not an endpoint.
+    # With separate keys two concurrent pullers would each assume the whole
+    # budget and together halve the spacing.
+    _PACER.wait("store", config.REVIEW_DELAY_SECONDS)
     payload = _http_get(
         config.STEAM_APPREVIEWS_URL.format(appid=appid),
         {
