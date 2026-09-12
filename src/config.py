@@ -1,0 +1,77 @@
+"""All tunable parameters for the project live here — no magic numbers in the pipeline code."""
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+RAW_DATA_DIR = PROJECT_ROOT / "data" / "raw"
+PROCESSED_DATA_DIR = PROJECT_ROOT / "data" / "processed"
+
+# Raw payloads are written here untransformed, one file per request, and the cache
+# is keyed so a re-run never re-fetches. The cache *is* the raw-data archive the
+# spec asks for — there is no separate "save the raw JSON" step to forget.
+STEAMSPY_ALL_DIR = RAW_DATA_DIR / "steamspy_all"
+STEAMSPY_APP_DIR = RAW_DATA_DIR / "steamspy_app"
+STORE_APP_DIR = RAW_DATA_DIR / "store_app"
+RESUME_FILE = RAW_DATA_DIR / "resume.json"
+
+# --- SteamSpy ---
+
+STEAMSPY_URL = "https://steamspy.com/api.php"
+
+# SteamSpy's published limits: 1 request/second for single-app calls, 60 seconds
+# between `all` pages. These are documented, not guessed. The full pull is long
+# enough that getting throttled mid-run costs more than respecting the wait.
+STEAMSPY_APP_DELAY_SECONDS = 1.0
+STEAMSPY_ALL_DELAY_SECONDS = 60.0
+
+# Fixed by the API. Here so the page-count arithmetic isn't a magic number.
+STEAMSPY_PAGE_SIZE = 1000
+
+# Hard stop. The catalogue is tens of thousands of apps; if paging hasn't ended by
+# 100 pages something is wrong with the termination check, and an unbounded loop
+# at 60s/page would run for hours before anyone noticed.
+MAX_ALL_PAGES = 100
+
+# --- Steam storefront ---
+
+STORE_APPDETAILS_URL = "https://store.steampowered.com/api/appdetails"
+
+# Valve publishes no limit for this endpoint. The community-reported ceiling is
+# roughly 200 requests per 5 minutes; 1.5s spacing sits inside that and leaves
+# headroom for the retry budget below.
+STORE_DELAY_SECONDS = 1.5
+
+# cc=au because the spec's price bands are in AUD. The currency code is recorded
+# in every cached payload, so a later re-band can verify it rather than trust it.
+STORE_COUNTRY = "au"
+STORE_LANGUAGE = "en"
+
+REQUEST_TIMEOUT_SECONDS = 30
+MAX_RETRIES = 5
+BACKOFF_BASE_SECONDS = 2.0
+
+# --- Phase 1: the comparison set (Checkpoint 1, decided by Eileen 2026-09-13) ---
+
+MIN_RELEASE_YEAR = 2015
+
+# Owner floor, applied to the interval midpoint. 20,000 is not an arbitrary round
+# number: SteamSpy's bottom band is literally "0 .. 20,000", midpoint 10,000, so
+# this floor drops exactly that band and nothing else — it is band-aligned rather
+# than a cut through the middle of one. The bias it introduces, to be stated on
+# the page in one sentence: survivorship. Games that flopped are excluded, so the
+# sample tilts toward titles that found an audience.
+MIN_OWNERS_MIDPOINT = 20_000
+
+# Headline engagement metric (Checkpoint 1b): median playtime forever, in minutes
+# as SteamSpy reports it. Median over mean because playtime is savagely skewed —
+# a handful of 4,000-hour players drag any mean off the map.
+HEADLINE_METRIC = "median_forever"
+
+# Robustness check: peak concurrent users per owner. This one divides by the owner
+# interval, so it is the metric that actually moves under the sensitivity bounds.
+ROBUSTNESS_METRIC = "ccu_per_owner"
+
+# Every owner-dependent result is evaluated at all three (Checkpoint 0).
+OWNER_BOUNDS = ("lower", "midpoint", "upper")
+
+# Price bands in AUD, upper bound exclusive; None means open-ended (spec Phase 2).
+PRICE_BANDS_AUD = ((0, 10), (10, 30), (30, 60), (60, None))
