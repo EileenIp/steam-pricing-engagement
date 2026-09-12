@@ -24,7 +24,8 @@ plan: `spec-steam-pricing-engagement.md`.
 | Genre stratification on SteamSpy tags | Built, tested, audited on 1,000 games |
 | Catalogue pull | Complete — 27,021 apps, 26,017 above the owner floor |
 | Stratified sampling by (pricing, genre) | Built, tested |
-| Naive vs genre-adjusted comparison | Not started |
+| Naive vs genre-adjusted comparison | Built and tested; validated on the sample |
+| Rank statistics (Mann-Whitney, Cliff's delta) | Built, tested |
 | Dashboard, deliverables, case study | Not started |
 
 ## Decisions so far
@@ -190,6 +191,30 @@ them. But it settles a question that was open — the 18-hour full enrichment is
 not optional for the core analytical move. The sample was only ever enough for
 vocabulary work.
 
+## What the sample run of the analysis showed
+
+The Phase 2b machinery was built and validated against the 1,000-game audit
+sample while the full enrichment ran. It works end to end — naive comparison,
+within-genre correction, price bands, release cohorts, all at three owner
+bounds — and it produced **no conclusion**, for a reason worth recording.
+
+More than half the cohort has a concurrent-player count of zero: 56% of F2P
+games and 51% of paid. CCU per owner is therefore mostly ties, and a rank test
+on mostly-ties has very little power. The only genre cell large enough to use at
+sample scale is 86% tied at zero, so even that number means nothing. The tie
+share is now printed beside every result rather than left to be discovered.
+
+This is a second, independent argument for the metric decision: CCU per owner
+was rejected as the headline on a measurement argument (it penalises
+single-player paid games structurally), and it turns out to also be degenerate
+across most of the catalogue. It remains useful as a cross-check on the games
+that *do* hold concurrent players, which is what a cross-check is for.
+
+A formatting bug surfaced at the same time and is worth noting because of how it
+looked: every CCU median printed as `0`. The values are around 1e-5, and a single
+format string cannot span those and playtime's thousands of minutes. It read
+exactly like a broken metric.
+
 ## Running it
 
 ```bash
@@ -200,6 +225,7 @@ python -m src.cohort report                   # cohort size F2P vs paid, at all 
 python -m src.cohort coverage                 # genre-vocabulary coverage, and what it misses
 python -m src.playtime one 1245620            # one game's playtime median from reviews
 python -m src.playtime sample                 # the stratified playtime pull
+python -m src.analysis sample                 # naive vs genre-adjusted, all bounds
 pytest
 ```
 
