@@ -231,3 +231,43 @@ def test_paging_stops_once_a_page_is_entirely_below_the_owner_floor(monkeypatch)
 
     assert len(transport.calls) == 2, "should not have asked for page 2"
     assert steamspy_fetch.load_resume()["catalogue_complete"] is True
+
+
+def test_enrich_pairs_both_sources_and_survives_a_bad_app(monkeypatch):
+    # One dead app must not end a pull measured in hours.
+    def transport(url, params, session=None):
+        if "steamspy" in url:
+            appid = params["appid"]
+            if appid == 2:
+                raise steamspy_fetch.SteamAPIError("boom")
+            return {"appid": appid, "owners": "50,000 .. 100,000"}
+        appid = params["appids"]
+        return {str(appid): {"success": True, "data": {"is_free": False}}}
+
+    monkeypatch.setattr(steamspy_fetch, "_http_get", transport)
+    records = steamspy_fetch.enrich([1, 2, 3])
+
+    assert set(records) == {1, 2, 3}
+    assert records[1]["steamspy"]["owners"] == "50,000 .. 100,000"
+    assert records[1]["store"]["success"] is True
+    assert records[2]["steamspy"] == {}, "the failed fetch is empty, not fabricated"
+    assert records[2]["store"]["success"] is True, "the other endpoint still ran"
+    assert steamspy_fetch.load_resume()["enriched"] == [1, 2, 3]
+
+
+def test_enrich_is_fully_cached_on_a_re_run(monkeypatch):
+    calls = []
+
+    def transport(url, params, session=None):
+        calls.append(params)
+        if "steamspy" in url:
+            return {"appid": params["appid"], "owners": "50,000 .. 100,000"}
+        return {str(params["appids"]): {"success": True, "data": {}}}
+
+    monkeypatch.setattr(steamspy_fetch, "_http_get", transport)
+    first = steamspy_fetch.enrich([1, 2])
+    live = len(calls)
+    second = steamspy_fetch.enrich([1, 2])
+
+    assert first == second
+    assert len(calls) == live, "a re-run should make no live requests"

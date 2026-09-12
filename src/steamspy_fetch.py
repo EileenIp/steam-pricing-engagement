@@ -24,6 +24,7 @@ from __future__ import annotations
 import json
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import requests
@@ -207,27 +208,65 @@ def fetch_store(appid: int, session: requests.Session | None = None) -> dict:
     return entry
 
 
-def enrich(appids: list[int], session: requests.Session | None = None) -> dict[int, dict]:
-    """SteamSpy detail + storefront detail for each app, resumable."""
-    state = load_resume()
-    done = set(state.get("enriched", []))
+def _drain(fetcher, appids: list[int], label: str) -> dict[int, dict]:
+    """Run one endpoint over every appid, on its own session and its own pacer.
+
+    Errors are counted, not raised. Over tens of thousands of apps a single bad
+    response should not end a pull measured in hours, and nothing is cached for a
+    failed fetch, so the next run simply retries it.
+    """
     out: dict[int, dict] = {}
+    errors = 0
 
-    for index, appid in enumerate(appids, start=1):
-        out[appid] = {
-            "steamspy": fetch_app(appid, session),
-            "store": fetch_store(appid, session),
-        }
+    with requests.Session() as session:
+        for index, appid in enumerate(appids, start=1):
+            try:
+                out[appid] = fetcher(appid, session)
+            except SteamAPIError:
+                errors += 1
+            if index % 500 == 0:
+                print(f"  {label}: {index:,}/{len(appids):,} ({errors} errors)", flush=True)
 
-        if appid not in done:
-            done.add(appid)
-            state["enriched"] = sorted(done)
-            save_resume(state)
-
-        if index % 50 == 0:
-            print(f"enriched {index}/{len(appids)}", flush=True)
-
+    print(f"  {label}: done, {len(out):,} fetched, {errors} errors", flush=True)
     return out
+
+
+def enrich(appids: list[int], session: requests.Session | None = None) -> dict[int, dict]:
+    """SteamSpy detail + storefront detail for each app, resumable.
+
+    The two endpoints are different hosts with independent rate limits - SteamSpy
+    at 1 request/second, the storefront at roughly 1 per 1.5s - so serialising
+    them makes every app cost the sum, 2.5s, when it only needs to cost the
+    slower of the two. Run as two pipelines they overlap, and the pull takes
+    1.5s per app instead: on 26,017 apps that is about 11 hours rather than 18.
+    Each pipeline keeps its own session and its own pacer key, so neither
+    endpoint's documented limit is exceeded.
+
+    Resumability is the disk cache, not the resume file: both fetchers check the
+    cache first, so re-running after an interrupt only fetches what is missing.
+    """
+    spy: dict[int, dict] = {}
+    store: dict[int, dict] = {}
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = {
+            pool.submit(_drain, fetch_app, appids, "steamspy"): "spy",
+            pool.submit(_drain, fetch_store, appids, "store"): "store",
+        }
+        for future in futures:
+            if futures[future] == "spy":
+                spy = future.result()
+            else:
+                store = future.result()
+
+    state = load_resume()
+    state["enriched"] = sorted(set(state.get("enriched", [])) | set(spy) | set(store))
+    save_resume(state)
+
+    return {
+        appid: {"steamspy": spy.get(appid, {}), "store": store.get(appid, {"success": False})}
+        for appid in appids
+    }
 
 
 def recon(appid: int) -> dict:
