@@ -15,6 +15,7 @@ Run: python -m src.cohort report
 """
 from __future__ import annotations
 
+import random
 import re
 import sys
 from collections import Counter
@@ -230,7 +231,7 @@ def candidate_appids(catalogue: dict) -> list[int]:
             owners = parse_owner_range(row.get("owners"))
         except OwnerParseError:
             continue
-        if owners.upper >= config.MIN_OWNERS_MIDPOINT:
+        if owners.upper > config.MIN_OWNERS_MIDPOINT:
             out.append(int(appid))
     return sorted(out)
 
@@ -255,7 +256,10 @@ def build_cohort(records: dict, bound: str = "midpoint") -> tuple[list[Game], Co
             excluded["unparseable owners"] += 1
             continue
 
-        if owners.at(bound) < config.MIN_OWNERS_MIDPOINT:
+        # Strict: the bottom band is 0 .. 20,000, so its upper bound is exactly
+        # the floor. A >= comparison would readmit the whole band at the upper
+        # sensitivity bound, which is the opposite of dropping it.
+        if owners.at(bound) <= config.MIN_OWNERS_MIDPOINT:
             excluded["below owner floor"] += 1
             continue
 
@@ -372,18 +376,42 @@ def coverage_report(games: list[Game]) -> str:
     return "\n".join(lines)
 
 
-def _load_cohort() -> list[Game]:
+def audit_sample(catalogue: dict, size: int | None = None) -> list[int]:
+    """A deterministic random sample of candidate appids, for the coverage audit.
+
+    Auditing the whole candidate set means enriching tens of thousands of apps at
+    ~2.5s each. A sample is enough for the question the audit asks - which tags
+    the vocabulary is missing - because a tag worth adding is a frequent one, and
+    frequent tags appear in a sample of a thousand.
+
+    Seeded, and the sample is drawn from the sorted candidate list, so the same
+    catalogue always yields the same sample. That matters: its enrichment is
+    cached, so the audit run is not wasted work but a down payment on the full
+    pull.
+    """
+    size = size or config.AUDIT_SAMPLE_SIZE
+    candidates = candidate_appids(catalogue)
+    if len(candidates) <= size:
+        return candidates
+    return sorted(random.Random(config.RANDOM_SEED).sample(candidates, size))
+
+
+def _load_cohort(sample_size: int | None = None) -> list[Game]:
     from src import steamspy_fetch
 
     catalogue = steamspy_fetch.fetch_catalogue()
-    records = steamspy_fetch.enrich(candidate_appids(catalogue))
+    appids = audit_sample(catalogue, sample_size) if sample_size else candidate_appids(catalogue)
+    print(f"{len(appids):,} apps to enrich (~{len(appids) * 2.5 / 60:.0f} min if uncached)", flush=True)
+    records = steamspy_fetch.enrich(appids)
     games, _ = build_cohort(records)
     return games
 
 
 def main(argv: list[str]) -> int:
     if argv and argv[0] == "coverage":
-        print(coverage_report(_load_cohort()))
+        # `coverage` samples by default; `coverage full` audits every candidate.
+        sample_size = None if argv[1:2] == ["full"] else config.AUDIT_SAMPLE_SIZE
+        print(coverage_report(_load_cohort(sample_size)))
         return 0
 
     if argv and argv[0] == "report":

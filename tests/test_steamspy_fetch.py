@@ -206,3 +206,28 @@ def test_html_error_page_with_a_200_is_an_error_not_data(monkeypatch):
 
     with pytest.raises(steamspy_fetch.SteamAPIError, match="not JSON"):
         steamspy_fetch._http_get("http://x", {}, session)
+
+
+def below_floor_page(n_apps, first_appid=1):
+    return {
+        str(first_appid + i): {"appid": first_appid + i, "owners": "0 .. 20,000"}
+        for i in range(n_apps)
+    }
+
+
+def test_paging_stops_once_a_page_is_entirely_below_the_owner_floor(monkeypatch):
+    # `all` is sorted by owners descending, so a page with no candidate means no
+    # later page has one either. Without this the pull spends an hour at 60s/page
+    # fetching apps that are excluded the moment they arrive.
+    monkeypatch.setattr(config, "STEAMSPY_PAGE_SIZE", 3)
+    transport = CountingTransport({
+        0: page(3),
+        1: below_floor_page(3, 4),
+        2: page(3, 7),
+    })
+    monkeypatch.setattr(steamspy_fetch, "_http_get", transport)
+
+    steamspy_fetch.fetch_catalogue()
+
+    assert len(transport.calls) == 2, "should not have asked for page 2"
+    assert steamspy_fetch.load_resume()["catalogue_complete"] is True

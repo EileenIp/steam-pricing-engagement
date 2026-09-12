@@ -148,6 +148,19 @@ def fetch_catalogue(max_pages: int | None = None, session: requests.Session | No
             state["catalogue_complete"] = True
             save_resume(state)
             break
+
+        # `all` is sorted by owners descending, so once an entire page sits below
+        # the owner floor, no later page can contain a candidate. Verified on the
+        # live catalogue: page 17 is entirely the 20,000..50,000 band and page 33
+        # entirely 0..20,000. Without this the pull spends an hour at 60s/page
+        # fetching apps that are excluded on arrival.
+        from src import cohort
+
+        if not cohort.candidate_appids(payload):
+            state["catalogue_complete"] = True
+            save_resume(state)
+            print(f"page {page} is entirely below the owner floor - stopping", flush=True)
+            break
     else:
         print(f"stopped at the {limit}-page hard stop - catalogue may be incomplete", flush=True)
 

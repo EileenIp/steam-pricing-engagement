@@ -156,15 +156,18 @@ def test_cohort_size_is_monotone_in_the_bound():
     # the lower one. The cohort itself has to move, or the sensitivity check is
     # cosmetic.
     records = {
-        "1": record(1, "0 .. 20,000"),            # midpoint 10k - out except at upper
-        "2": record(2, "20,000 .. 50,000"),       # in at every bound but lower
+        # The bottom band's upper bound is exactly the floor. It must stay out at
+        # every bound, including upper - the floor was chosen to drop this band.
+        "1": record(1, "0 .. 20,000"),
+        "2": record(2, "20,000 .. 50,000"),       # straddles: out at lower, in above
         "3": record(3, "1,000,000 .. 2,000,000"),  # in everywhere
     }
     sizes = {bound: len(cohort.build_cohort(records, bound)[0]) for bound in config.OWNER_BOUNDS}
 
     assert sizes["lower"] <= sizes["midpoint"] <= sizes["upper"]
-    assert sizes["upper"] == 3
+    assert sizes["lower"] == 1
     assert sizes["midpoint"] == 2
+    assert sizes["upper"] == 2, "the bottom band must not return at the upper bound"
 
 
 # --- inclusion rule ---------------------------------------------------------
@@ -202,12 +205,12 @@ def test_non_aud_price_is_refused_rather_than_converted():
 
 def test_candidate_prefilter_keeps_anything_that_could_survive_any_bound():
     catalogue = {
-        "1": {"owners": "0 .. 20,000"},       # upper bound reaches the floor - keep
-        "2": {"owners": "0 .. 0"},            # cannot survive at any bound - drop
+        "1": {"owners": "0 .. 20,000"},       # tops out exactly at the floor - drop
+        "2": {"owners": "20,000 .. 50,000"},  # could survive above the lower bound
         "3": {"owners": "not a range"},       # unparseable - drop, don't crash
         "4": {"owners": "500,000 .. 1,000,000"},
     }
-    assert cohort.candidate_appids(catalogue) == [1, 4]
+    assert cohort.candidate_appids(catalogue) == [2, 4]
 
 
 # --- genre stratification on tags -------------------------------------------
@@ -286,3 +289,20 @@ def test_coverage_is_reported_per_pricing_model():
 
     assert "f2p: 1/1 classified (100.0%)" in report
     assert "paid: 0/1 classified (0.0%)" in report
+
+
+def test_audit_sample_is_deterministic_and_bounded():
+    catalogue = {str(i): {"owners": "50,000 .. 100,000"} for i in range(1, 501)}
+
+    first = cohort.audit_sample(catalogue, 50)
+    second = cohort.audit_sample(catalogue, 50)
+
+    assert first == second, "the sample must be stable, or its cached enrichment is wasted"
+    assert len(first) == 50
+    assert first == sorted(first)
+    assert set(first) <= set(cohort.candidate_appids(catalogue))
+
+
+def test_audit_sample_smaller_than_the_request_is_returned_whole():
+    catalogue = {str(i): {"owners": "50,000 .. 100,000"} for i in range(1, 11)}
+    assert cohort.audit_sample(catalogue, 50) == list(range(1, 11))

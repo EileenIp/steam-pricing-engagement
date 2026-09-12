@@ -189,3 +189,11 @@ GENRE_TAGS = frozenset({
 # cohort - it still has a pricing model and an engagement figure - but never used
 # to support a within-genre claim.
 UNCLASSIFIED_GENRE = "Unclassified"
+
+# Coverage audit sample. The candidate set is tens of thousands of apps and
+# enrichment costs ~2.5s each across both APIs, so auditing the whole set would
+# take most of a day. A thousand games is ample for ranking which tags the
+# vocabulary is missing - a tag worth adding is by definition a frequent one, and
+# frequent tags show up in a sample this size. Seeded, so the sample is stable
+# and its enrichment stays cached for the real run.
+AUDIT_SAMPLE_SIZE = 1000
