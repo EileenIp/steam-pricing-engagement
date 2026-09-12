@@ -185,6 +185,24 @@ GENRE_TAGS = frozenset({
     "Sports", "Racing", "Football (Soccer)", "Basketball", "Golf", "Fishing",
 })
 
+# Steam's own top-level genre names. These are in the vocabulary because a game
+# with nothing more specific still needs a stratum, but they are umbrellas, and a
+# highest-votes rule hands almost everything to them: measured on the 1,000-game
+# audit sample, 65% of the cohort landed in one of these, with Action, Adventure
+# and Casual alone taking 40%. That is barely better than the storefront genres
+# tags were meant to replace - "Action" is not a stratum that separates a MOBA
+# from a Souls-like.
+#
+# So they are a fallback tier, not competitors. A specific tag wins even when an
+# umbrella tag has more votes, and these are only reached when a game has no
+# specific tag at all.
+BROAD_GENRE_TAGS = frozenset({
+    "Action", "Adventure", "Casual", "RPG", "Simulation", "Strategy", "Puzzle",
+    "Sports", "Racing", "Massively Multiplayer", "Music", "Sandbox", "Crafting",
+    "Management", "Fighting", "Platformer", "Survival", "Horror", "Stealth",
+    "Flight", "Board Game", "Card Game",
+})
+
 # A game whose tags contain nothing in the vocabulary lands here. Kept in the
 # cohort - it still has a pricing model and an engagement figure - but never used
 # to support a within-genre claim.
@@ -197,3 +215,14 @@ UNCLASSIFIED_GENRE = "Unclassified"
 # frequent tags show up in a sample this size. Seeded, so the sample is stable
 # and its enrichment stays cached for the real run.
 AUDIT_SAMPLE_SIZE = 1000
+
+# Steam sells software as well as games, and the audit found it in the cohort -
+# Utilities, Design & Illustration. A pricing-and-engagement comparison across
+# games should not be averaging in a wallpaper app or a 3D modelling tool, and
+# their playtime means something entirely different. Excluded on the storefront's
+# own genre labels, and counted so the number is reportable.
+NON_GAME_STORE_GENRES = frozenset({
+    "Utilities", "Design & Illustration", "Animation & Modeling",
+    "Video Production", "Audio Production", "Photo Editing", "Software Training",
+    "Web Publishing", "Game Development", "Education", "Accounting",
+})

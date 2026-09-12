@@ -306,3 +306,30 @@ def test_audit_sample_is_deterministic_and_bounded():
 def test_audit_sample_smaller_than_the_request_is_returned_whole():
     catalogue = {str(i): {"owners": "50,000 .. 100,000"} for i in range(1, 11)}
     assert cohort.audit_sample(catalogue, 50) == list(range(1, 11))
+
+
+def test_umbrella_tags_lose_to_specific_ones_even_with_more_votes():
+    # The failure this tier exists to fix: on the audit sample a highest-votes
+    # rule put 65% of the cohort into a broad bucket, which is no better than the
+    # storefront genres tags were brought in to replace.
+    tags = {"Action": 9000, "Casual": 8000, "Roguelike": 1200}
+    assert cohort.primary_genre_from_tags(tags) == "Roguelike"
+
+
+def test_umbrella_tags_are_still_used_when_nothing_specific_exists():
+    assert cohort.primary_genre_from_tags({"Action": 9000, "Casual": 8000}) == "Action"
+
+
+def test_every_umbrella_tag_is_part_of_the_vocabulary():
+    assert config.BROAD_GENRE_TAGS <= config.GENRE_TAGS
+
+
+def test_software_is_excluded_from_a_games_comparison():
+    records = {
+        "1": record(1, "1,000,000 .. 2,000,000", genre="Utilities", tags={"Action": 100}),
+        "2": record(2, "1,000,000 .. 2,000,000", genre="Action", tags={"Action": 100}),
+    }
+    games, excluded = cohort.build_cohort(records)
+
+    assert [g.appid for g in games] == [2]
+    assert excluded["not a game (software)"] == 1

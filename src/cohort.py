@@ -159,7 +159,16 @@ def primary_genre_from_tags(tags: dict) -> str:
     }
     if not eligible:
         return config.UNCLASSIFIED_GENRE
-    return max(sorted(eligible), key=lambda tag: eligible[tag])
+
+    # Specificity beats votes. Steam's umbrella tags ("Action", "Casual") out-vote
+    # the informative ones on most games, so a pure highest-votes rule put 65% of
+    # the audit sample into a broad bucket - no better than the storefront genres
+    # this replaced. Umbrellas are a fallback, reached only when a game has
+    # nothing more specific.
+    specific = {t: v for t, v in eligible.items() if t not in config.BROAD_GENRE_TAGS}
+    pool = specific or eligible
+
+    return max(sorted(pool), key=lambda tag: pool[tag])
 
 
 @dataclass(frozen=True)
@@ -271,6 +280,11 @@ def build_cohort(records: dict, bound: str = "midpoint") -> tuple[list[Game], Co
             excluded[f"released before {config.MIN_RELEASE_YEAR}"] += 1
             continue
 
+        store_genres = genres(store)
+        if any(g in config.NON_GAME_STORE_GENRES for g in store_genres):
+            excluded["not a game (software)"] += 1
+            continue
+
         pricing = classify_pricing(store)
         if pricing is None:
             excluded["pricing not determinable"] += 1
@@ -296,7 +310,7 @@ def build_cohort(records: dict, bound: str = "midpoint") -> tuple[list[Game], Co
                 pricing=pricing,
                 price=price,
                 year=year,
-                genres=tuple(genres(store)),
+                genres=tuple(store_genres),
                 # Tags only come from the per-app SteamSpy call, never from the
                 # `all` rows - which is what justifies paying for that call.
                 tags=tuple(sorted((spy.get("tags") or {}).items())),

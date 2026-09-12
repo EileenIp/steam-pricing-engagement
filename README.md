@@ -21,7 +21,8 @@ plan: `spec-steam-pricing-engagement.md`.
 | Owner-range interval handling + sensitivity bounds | Built, tested |
 | Inclusion rule (2015+, 20k owner floor) | Built, tested |
 | Headline engagement metric | Rebuilt on review payloads after SteamSpy's fields came back empty |
-| Genre stratification on SteamSpy tags | Built, tested, live-verified |
+| Genre stratification on SteamSpy tags | Built, tested, audited on 1,000 games |
+| Catalogue pull | Complete — 27,021 apps, 26,017 above the owner floor |
 | Stratified sampling by (pricing, genre) | Built, tested |
 | Naive vs genre-adjusted comparison | Not started |
 | Dashboard, deliverables, case study | Not started |
@@ -148,6 +149,46 @@ claim. Steam's broad genre is kept on every game alongside the tag stratum, so
 the correction can be shown at both resolutions; if the naive gap survives the
 three broad buckets but dies under tags, that difference is itself the argument
 for why the finer correction was necessary.
+
+## What the genre audit found
+
+The vocabulary was audited against a seeded 1,000-game sample (~42 minutes of
+enrichment; the full candidate set is 26,017 apps, which at ~2.5s each is about
+18 hours). Three things came out of it, and only the first was the one being
+looked for.
+
+**Coverage was never the problem.** The 94-tag vocabulary classified 99.3% of the
+sampled cohort. The handful it missed were not missing genres — they were
+Utilities, Design & Illustration and VR, i.e. software rather than games. Those
+are now excluded on the storefront's own genre labels, and counted: 13 of the
+1,000 sampled apps were software. A pricing-and-engagement comparison should not
+be averaging in a wallpaper app, whose playtime means something entirely
+different.
+
+**Specificity was the problem.** 99.3% coverage was hollow. Ranking eligible tags
+by votes put **65% of the cohort into a broad bucket** — Action, Adventure and
+Casual alone took 40% — because Steam's umbrella tags out-vote the informative
+ones on almost every game. A game tagged `Action 5,000 / Roguelike 3,000` was
+being labelled "Action". That is no better than the three storefront buckets tags
+were brought in to replace.
+
+The rule is now tiered: a specific tag beats an umbrella tag regardless of votes,
+and umbrellas are reached only when a game has nothing more specific. Broad-bucket
+share fell from 65% to 18%, and the strata became real ones — Point & Click, FPS,
+Visual Novel, Psychological Horror, JRPG, 3D Platformer.
+
+**And that exposed the real constraint.** The two pressures pull against each
+other: too broad and the correction is worthless, too specific and the cells
+empty out. F2P is only ~16% of the cohort, so once it is spread across 84 strata
+the F2P side of most cells is thin. In the 1,000-game sample, exactly **one**
+genre has at least 8 games of each pricing model — the within-genre comparison
+has almost nothing to stand on at that scale.
+
+This is a sampling limit, not a dead end: 45 genres already contain at least one
+game of each model in a 3.8% sample, so the full pull should populate many of
+them. But it settles a question that was open — the 18-hour full enrichment is
+not optional for the core analytical move. The sample was only ever enough for
+vocabulary work.
 
 ## Running it
 
