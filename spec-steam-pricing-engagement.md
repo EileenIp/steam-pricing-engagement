@@ -3,7 +3,6 @@
 **For:** Eileen Ip · portfolio project (new build, starts from zero)
 **Theme:** Gaming
 **Status:** not started. Corrected 2026-09-12 — the earlier "dashboard already built on sample data" claim was wrong; no sample build exists anywhere. This spec covers the whole build: the data pull and the analysis depth that makes it defensible.
-**Agent:** one builder, Sonnet, in Claude Code. Same working rules as the churn spec: the agent stops at every **EILEEN DECIDES**, never invents a number, never writes `NOTES.md`, reads spec + `NOTES.md` + last commit at each session start, commits per phase.
 
 ---
 
@@ -19,7 +18,7 @@ The trap this project must avoid: "F2P games have more owners" is not a finding,
 
 ## Phase 0 — Data pull
 
-**AGENT:**
+**Build:**
 
 - Source: SteamSpy API (`https://steamspy.com/api.php`). Respect the documented rate limits — 1 request/second for single-app calls, 60 seconds between `all` pages. Build the puller with caching to disk so a re-run never re-fetches, and a resume file so an interrupted pull continues instead of restarting. Budget: the full catalogue is tens of thousands of apps; pull the `all` pages first, then enrich the analysis subset app-by-app.
 - Enrich with the Steam storefront API (`appdetails`) for current price, genres, release date, and F2P flag on the analysis subset.
@@ -31,24 +30,24 @@ The trap this project must avoid: "F2P games have more owners" is not a finding,
 2. **Playtime medians/averages come only from profiles that are public** — a selection bias worth one honest sentence in the README.
 3. Free weekend spikes and bundle giveaways inflate owners without engagement.
 
-**EILEEN DECIDES:** how to represent owner ranges in analysis — interval midpoint with a sensitivity check at both bounds is the defensible default, but it's your call and it goes in `NOTES.md`. This is a guaranteed interview question because it's visible in every chart.
+**Decision:** how to represent owner ranges in analysis — interval midpoint with a sensitivity check at both bounds is the defensible default; the choice goes in `NOTES.md`. This is a guaranteed interview question because it's visible in every chart.
 
 **Checkpoint 0.**
 
 ## Phase 1 — Scope the comparison set
 
-**EILEEN DECIDES, before code:**
+**Decisions, before code:**
 
 - Which games count? Everything since 2015? Only games above some owner floor (tiny games add noise, but excluding them biases toward winners — survivorship)? State the inclusion rule and its bias in one sentence each.
 - The engagement metric. Candidates: median playtime (2 weeks), median playtime (forever), average playtime, CCU per (midpoint) owner. Pick one headline metric and one robustness check. Median beats mean here — playtime is savagely skewed — but say so yourself.
 
-**AGENT:** implement the filter in `config.py`, report how many games survive, broken down F2P vs paid.
+**Build:** implement the filter in `config.py`, report how many games survive, broken down F2P vs paid.
 
 **Checkpoint 1.**
 
 ## Phase 2 — The analysis that earns the project
 
-**AGENT:**
+**Build:**
 
 - Naive comparison first (F2P vs paid on the headline metric) — then show why it's misleading.
 - **Genre confounding is the core analytical move.** F2P concentrates in specific genres (MMO, MOBA, extraction shooters); paid dominates others. Compare within genre, or stratify, and show how the naive gap changes. This is the "why, not just what" layer.
@@ -56,7 +55,7 @@ The trap this project must avoid: "F2P games have more owners" is not a finding,
 - Release-year cohorts: is the F2P engagement edge (if any) growing or shrinking?
 - Statistical honesty: report effect sizes with the owner-range sensitivity bounds, not just point estimates. Mann-Whitney over t-tests given the skew — or justify otherwise.
 
-**EILEEN DECIDES:** the interpretation. If the within-genre analysis kills the naive result, that *is* the finding — "the F2P engagement advantage is mostly a genre effect" is a better portfolio story than a confirmation.
+**Decision:** the interpretation. If the within-genre analysis kills the naive result, that *is* the finding — "the F2P engagement advantage is mostly a genre effect" is a better portfolio story than a confirmation.
 
 **Tests (pytest):** owner-range parsing round-trips correctly; no game appears in both F2P and paid sets; sensitivity bounds bracket the midpoint result; the pull cache returns identical data on re-run.
 
@@ -64,13 +63,13 @@ The trap this project must avoid: "F2P games have more owners" is not a finding,
 
 ## Phase 3 — Build the dashboard
 
-**AGENT:** build the dashboard on the real data. It needs: the naive-vs-genre-adjusted comparison side by side (this is the hero — show the correction happening), price-band view, and an uncertainty ribbon from the owner-range bounds. Keep it self-contained HTML on GitHub Pages, consistent with the portfolio site.
+**Build:** build the dashboard on the real data. It needs: the naive-vs-genre-adjusted comparison side by side (this is the hero — show the correction happening), price-band view, and an uncertainty ribbon from the owner-range bounds. Keep it self-contained HTML on GitHub Pages, consistent with the portfolio site.
 
 ## Phase 4 — Deliverables
 
 Same four-output pattern as the churn spec Phase 7: HTML dashboard (done in Phase 3), short stakeholder deck, 3–4 page report, and a website case study in the portfolio's established structure. Plain language on every surface; method detail behind a toggle or in the appendix.
 
-**EILEEN WRITES:** the "what didn't work", limitations (owner ranges, public-profile bias, no revenue data — engagement ≠ monetisation), and the recommendation paragraph.
+**To write:** the "what didn't work", limitations (owner ranges, public-profile bias, no revenue data — engagement ≠ monetisation), and the recommendation paragraph.
 
 ---
 
@@ -84,10 +83,6 @@ Same four-output pattern as the churn spec Phase 7: HTML dashboard (done in Phas
 ## Screening audit
 
 Run the churn spec's Appendix C scorecard before shipping. The rows most at risk here: **Depth of analysis** (if genre correction is shallow) and **Handling ambiguity** (if owner ranges get silently midpointed with no sensitivity check).
-
-## Cost discipline
-
-Smallest project of the set. Estimate A$8–15 total: the pull is slow (rate limits) but cheap — start it, let it cache, come back. One phase per session. Stop and reassess past A$20.
 
 ## Definition of done
 
