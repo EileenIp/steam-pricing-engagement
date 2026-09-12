@@ -119,3 +119,73 @@ MIN_REVIEWERS_FOR_MEDIAN = 30
 RANDOM_SEED = 42
 GAMES_PER_STRATUM = 25
 MIN_GAMES_PER_STRATUM = 8  # cells thinner than this are reported, not analysed
+
+# --- Genre stratification on SteamSpy tags (Eileen, 2026-09-13) -------------
+#
+# Steam's storefront genres are three broad buckets - ELDEN RING is "Action, RPG",
+# Dota 2 is "Action, Strategy". Correcting for genre confounding on those would be
+# a weak correction, because the confound the project is about lives at the level
+# of MOBA vs Souls-like, not Action vs RPG. SteamSpy's user tags carry that
+# resolution, so stratification runs on tags instead.
+#
+# Tags cannot be used raw. Two problems, both visible in Dota 2's tag list:
+#
+#   1. CIRCULARITY. Its highest-voted tag is "Free to Play" at 60,040 votes,
+#      three times the next. Taking the top tag would put every F2P game in a
+#      "Free to Play" cell and every paid game elsewhere - the strata would
+#      encode the pricing model, and no cell would contain both, which is exactly
+#      the comparison the project exists to make. Business-model tags are
+#      therefore excluded by name, below.
+#   2. DESCRIPTORS. "Difficult", "Dark Fantasy", "Third Person", "Multiplayer",
+#      "Indie" are not genres. A blocklist of these would never end, so the
+#      vocabulary is an explicit allowlist: a tag counts as a genre only if it is
+#      listed here. That makes every cell assignment inspectable - it can be said
+#      exactly why any game landed in any stratum.
+#
+# The allowlist is a judgement call, and an incomplete one until the catalogue
+# lands. `python -m src.cohort coverage` reports how many games it fails to
+# classify and which tags they would otherwise have fallen into, so the gaps are
+# measured rather than assumed.
+
+PRICING_MODEL_TAGS = frozenset({
+    "Free to Play",
+    "Early Access",
+})
+
+GENRE_TAGS = frozenset({
+    # shooters
+    "FPS", "Third-Person Shooter", "Hero Shooter", "Looter Shooter",
+    "Extraction Shooter", "Battle Royale", "Arena Shooter", "Twin Stick Shooter",
+    "Bullet Hell", "Shoot 'Em Up", "Tactical Shooter", "Hunting",
+    # role-playing
+    "RPG", "Action RPG", "JRPG", "CRPG", "Tactical RPG", "Party-Based RPG",
+    "Souls-like", "Dungeon Crawler", "Roguelike", "Roguelite",
+    "Roguelike Deckbuilder", "MMORPG", "Massively Multiplayer",
+    # strategy
+    "Strategy", "RTS", "Real Time Tactics", "Turn-Based Strategy",
+    "Turn-Based Tactics", "Grand Strategy", "4X", "Wargame", "Tower Defense",
+    "Auto Battler", "MOBA", "Card Battler", "Deckbuilding",
+    # simulation and management
+    "Simulation", "City Builder", "Colony Sim", "Management", "Farming Sim",
+    "Life Sim", "Dating Sim", "Immersive Sim", "Space Sim", "Flight",
+    "Automobile Sim", "Base Building", "Crafting", "Sandbox",
+    # action and platforming
+    "Platformer", "2D Platformer", "3D Platformer", "Precision Platformer",
+    "Metroidvania", "Hack and Slash", "Beat 'em up", "Fighting", "Stealth",
+    "Action-Adventure", "Action", "Adventure",
+    # survival and horror
+    "Survival", "Open World Survival Craft", "Survival Horror", "Horror",
+    "Psychological Horror",
+    # puzzle, narrative, casual
+    "Puzzle", "Puzzle Platformer", "Hidden Object", "Match 3", "Point & Click",
+    "Visual Novel", "Interactive Fiction", "Choose Your Own Adventure",
+    "Walking Simulator", "Card Game", "Board Game", "Trivia", "Word Game",
+    "Idler", "Clicker", "Party Game", "Rhythm", "Music", "Casual",
+    # sports and racing
+    "Sports", "Racing", "Football (Soccer)", "Basketball", "Golf", "Fishing",
+})
+
+# A game whose tags contain nothing in the vocabulary lands here. Kept in the
+# cohort - it still has a pricing model and an engagement figure - but never used
+# to support a within-genre claim.
+UNCLASSIFIED_GENRE = "Unclassified"

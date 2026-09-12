@@ -38,7 +38,7 @@ def store_entry(*, is_free=False, price_cents=2999, year="12 Aug, 2024", genre="
     return entry
 
 
-def record(appid, owners, *, is_free=False, median=600, ccu=100, **store_kwargs):
+def record(appid, owners, *, is_free=False, median=600, ccu=100, tags=None, **store_kwargs):
     return {
         "steamspy": {
             "appid": appid,
@@ -46,9 +46,22 @@ def record(appid, owners, *, is_free=False, median=600, ccu=100, **store_kwargs)
             "owners": owners,
             "median_forever": median,
             "ccu": ccu,
+            "tags": tags or {},
         },
         "store": store_entry(is_free=is_free, **store_kwargs),
     }
+
+
+# Real tag dictionaries, trimmed. These two are the cases the vocabulary exists
+# for, so they are the fixture rather than invented ones.
+DOTA_TAGS = {
+    "Free to Play": 60040, "MOBA": 20225, "Multiplayer": 15411, "Strategy": 14289,
+    "e-sports": 11816, "Team-Based": 10989, "Competitive": 8324, "Action": 7939,
+}
+ELDEN_RING_TAGS = {
+    "Souls-like": 6994, "Open World": 5078, "Dark Fantasy": 4953, "RPG": 4707,
+    "Difficult": 4595, "Action RPG": 3584, "Third Person": 3403, "Multiplayer": 3395,
+}
 
 
 # --- owner ranges -----------------------------------------------------------
@@ -195,3 +208,81 @@ def test_candidate_prefilter_keeps_anything_that_could_survive_any_bound():
         "4": {"owners": "500,000 .. 1,000,000"},
     }
     assert cohort.candidate_appids(catalogue) == [1, 4]
+
+
+# --- genre stratification on tags -------------------------------------------
+
+
+def test_the_vocabulary_and_the_pricing_blocklist_do_not_overlap():
+    # If a business-model tag ever got into the genre vocabulary, the circularity
+    # guard below would silently stop working.
+    assert config.GENRE_TAGS & config.PRICING_MODEL_TAGS == frozenset()
+
+
+def test_pricing_model_tags_cannot_become_a_stratum():
+    # The whole point. Dota 2's top tag is "Free to Play" at 60,040 votes, three
+    # times the next; taking the top tag would make the strata a restatement of
+    # the pricing model and leave no cell containing both models.
+    assert cohort.primary_genre_from_tags(DOTA_TAGS) == "MOBA"
+
+
+def test_descriptor_tags_are_not_genres():
+    # "Open World", "Dark Fantasy", "Difficult", "Third Person" all outrank the
+    # eligible tags by votes here, and none of them is a genre.
+    assert cohort.primary_genre_from_tags(ELDEN_RING_TAGS) == "Souls-like"
+
+
+def test_a_game_with_no_recognised_tag_is_unclassified_not_forced():
+    tags = {"Great Soundtrack": 900, "Atmospheric": 800, "Female Protagonist": 700}
+    assert cohort.primary_genre_from_tags(tags) == config.UNCLASSIFIED_GENRE
+    assert cohort.primary_genre_from_tags({}) == config.UNCLASSIFIED_GENRE
+    assert cohort.primary_genre_from_tags(None) == config.UNCLASSIFIED_GENRE
+
+
+def test_tag_ties_break_deterministically():
+    # Same votes, different insertion order - the stratum must not depend on which
+    # order the dict happened to arrive in, or the sample stops being cacheable.
+    first = cohort.primary_genre_from_tags({"Racing": 500, "Puzzle": 500})
+    second = cohort.primary_genre_from_tags({"Puzzle": 500, "Racing": 500})
+    assert first == second == "Puzzle"
+
+
+def test_tags_survive_into_the_cohort_and_set_the_stratum():
+    records = {"570": record(570, "1,000,000 .. 2,000,000", is_free=True, tags=DOTA_TAGS)}
+    games, _ = cohort.build_cohort(records)
+
+    assert games[0].primary_genre == "MOBA"
+    assert games[0].classified is True
+    # Steam's own genre is kept alongside, and is exactly the broad bucket the
+    # tag-level correction exists to improve on.
+    assert games[0].store_genre == "Action"
+
+
+def test_coverage_report_names_the_tags_worth_adding():
+    records = {
+        "1": record(1, "1,000,000 .. 2,000,000", tags={"Colony Sim": 100}),
+        "2": record(2, "1,000,000 .. 2,000,000", tags={"Cozy": 900, "Wholesome": 100}),
+        "3": record(3, "1,000,000 .. 2,000,000", tags={"Cozy": 400}),
+        "4": record(4, "1,000,000 .. 2,000,000", tags={}),
+    }
+    games, _ = cohort.build_cohort(records)
+
+    assert cohort.unclassified_top_tags(games) == [("Cozy", 2), ("(no tags at all)", 1)]
+
+    report = cohort.coverage_report(games)
+    assert "1/4 classified (25.0%)" in report
+    assert "Cozy" in report
+
+
+def test_coverage_is_reported_per_pricing_model():
+    # A vocabulary gap that falls unevenly on F2P vs paid thins one side of every
+    # comparison, so the report has to show the split, not just the total.
+    records = {
+        "1": record(1, "1,000,000 .. 2,000,000", is_free=True, tags={"MOBA": 100}),
+        "2": record(2, "1,000,000 .. 2,000,000", is_free=False, tags={"Cozy": 100}),
+    }
+    games, _ = cohort.build_cohort(records)
+    report = cohort.coverage_report(games)
+
+    assert "f2p: 1/1 classified (100.0%)" in report
+    assert "paid: 0/1 classified (0.0%)" in report

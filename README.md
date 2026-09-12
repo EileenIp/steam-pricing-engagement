@@ -21,6 +21,7 @@ plan: `spec-steam-pricing-engagement.md`.
 | Owner-range interval handling + sensitivity bounds | Built, tested |
 | Inclusion rule (2015+, 20k owner floor) | Built, tested |
 | Headline engagement metric | Rebuilt on review payloads after SteamSpy's fields came back empty |
+| Genre stratification on SteamSpy tags | Built, tested, live-verified |
 | Stratified sampling by (pricing, genre) | Built, tested |
 | Naive vs genre-adjusted comparison | Not started |
 | Dashboard, deliverables, case study | Not started |
@@ -44,6 +45,9 @@ Eileen's calls, 2026-09-13:
 - **Engagement metric (Checkpoint 1b).** Median playtime forever, with CCU per
   owner as the robustness check. **Revised the same day**, after the chosen
   metric was found to have no data behind it — see below.
+- **Genre stratification.** On SteamSpy user tags, not Steam storefront genres —
+  see below for why the storefront genres were not good enough and what the tags
+  needed before they could be used.
 
 ## What didn't work: SteamSpy no longer carries playtime
 
@@ -95,6 +99,56 @@ What the replacement costs, carried openly rather than absorbed:
   thin to compare within. Cells below the threshold are reported as thin rather
   than quietly analysed.
 
+## Genre stratification runs on tags, not storefront genres
+
+Comparing within genre is the analytical move this project turns on — the naive
+F2P-vs-paid gap is expected to be largely a genre effect, and showing that
+correction happen is the hero chart. So the resolution of the genre variable
+decides how much the correction is worth.
+
+Steam's storefront genres are three broad buckets. ELDEN RING is "Action, RPG";
+Dota 2 is "Action, Strategy". The confound this project is about does not live at
+that resolution — it lives at MOBA vs Souls-like. SteamSpy's user tags carry it,
+so the strata come from tags.
+
+Tags cannot be used raw, and the reason is visible in Dota 2's own tag list:
+
+| Tag | Votes |
+|---|---|
+| **Free to Play** | **60,040** |
+| MOBA | 20,225 |
+| Multiplayer | 15,411 |
+| Strategy | 14,289 |
+
+Its highest-voted tag is the pricing model, by a factor of three. Taking the top
+tag would sort every F2P game into a "Free to Play" stratum and every paid game
+elsewhere, so no cell would contain both and the within-genre comparison would
+have nothing left to compare — the strata would be a restatement of the variable
+under test. Business-model tags are therefore excluded by name.
+
+The second problem is that most high-voted tags are not genres at all —
+"Difficult", "Dark Fantasy", "Third Person", "Indie", "Atmospheric". A blocklist
+of those would never be finished, so the vocabulary is an explicit allowlist in
+`config.py`: a tag is a genre only if it is listed. Every cell assignment is then
+inspectable — it can be said exactly why any game landed in any stratum. Live
+check: ELDEN RING strata as **Souls-like**, where the storefront said only
+"Action".
+
+The allowlist is a judgement call, and an incomplete one until the catalogue
+lands. `python -m src.cohort coverage` reports what share of the cohort it
+classifies, **split by pricing model** — a coverage gap that falls unevenly on
+F2P vs paid thins one side of every comparison, which is a bias rather than
+merely a gap — and names the tags the unclassified games would otherwise have
+fallen into, ranked by how many games each would rescue. The vocabulary grows
+from that, not from guesswork.
+
+Games the vocabulary cannot place stay in the cohort — they still have a pricing
+model and an engagement figure — but are never used to support a within-genre
+claim. Steam's broad genre is kept on every game alongside the tag stratum, so
+the correction can be shown at both resolutions; if the naive gap survives the
+three broad buckets but dies under tags, that difference is itself the argument
+for why the finer correction was necessary.
+
 ## Running it
 
 ```bash
@@ -102,6 +156,7 @@ pip install -r requirements.txt
 python -m src.steamspy_fetch recon 570        # one app, both sources, to eyeball shapes
 python -m src.steamspy_fetch catalogue        # the `all` pages — slow, 60s between pages
 python -m src.cohort report                   # cohort size F2P vs paid, at all three bounds
+python -m src.cohort coverage                 # genre-vocabulary coverage, and what it misses
 python -m src.playtime one 1245620            # one game's playtime median from reviews
 python -m src.playtime sample                 # the stratified playtime pull
 pytest

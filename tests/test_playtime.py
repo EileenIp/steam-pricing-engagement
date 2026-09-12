@@ -136,6 +136,9 @@ def game(appid, pricing, genre):
         price=0.0 if pricing == "f2p" else 29.99,
         year=2020,
         genres=(genre,),
+        # The stratum comes from tags, not from the storefront genre, so a
+        # fixture without tags would put every game in one Unclassified cell.
+        tags=((genre, 100),),
     )
 
 

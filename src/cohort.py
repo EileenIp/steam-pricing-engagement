@@ -140,6 +140,27 @@ def price_band(price: float) -> str:
 # --- the comparison set -----------------------------------------------------
 
 
+def primary_genre_from_tags(tags: dict) -> str:
+    """The highest-voted tag that the genre vocabulary actually recognises.
+
+    Not simply the top tag. Dota 2's top tag is "Free to Play" at 60,040 votes,
+    which would make the strata a restatement of the pricing model - see the
+    reasoning in config. Only tags in GENRE_TAGS are eligible, and business-model
+    tags are excluded by name on top of that.
+
+    Ties break alphabetically so the assignment is deterministic: the same tag
+    dictionary always produces the same stratum, run to run.
+    """
+    eligible = {
+        tag: votes
+        for tag, votes in (tags or {}).items()
+        if tag in config.GENRE_TAGS and tag not in config.PRICING_MODEL_TAGS
+    }
+    if not eligible:
+        return config.UNCLASSIFIED_GENRE
+    return max(sorted(eligible), key=lambda tag: eligible[tag])
+
+
 @dataclass(frozen=True)
 class Game:
     appid: int
@@ -151,13 +172,26 @@ class Game:
     price: float
     year: int
     genres: tuple[str, ...]
+    tags: tuple[tuple[str, int], ...] = ()
 
     @property
     def primary_genre(self) -> str:
-        # Steam lists genres in a fixed order per app; the first is the one the
-        # store leads with. Broad, but it is the only genre signal both sources
-        # agree on, and SteamSpy's user tags are a popularity contest.
+        """The stratum. Tag-derived, because that is where the confound lives."""
+        return primary_genre_from_tags(dict(self.tags))
+
+    @property
+    def store_genre(self) -> str:
+        """Steam's own broad genre. Kept for the coarse-vs-fine comparison.
+
+        Showing the correction at both resolutions is worth a chart: if the naive
+        gap survives Steam's three buckets but dies under tags, that difference is
+        itself the argument for why the tag-level correction was necessary.
+        """
         return self.genres[0] if self.genres else "Uncategorised"
+
+    @property
+    def classified(self) -> bool:
+        return self.primary_genre != config.UNCLASSIFIED_GENRE
 
     def ccu_per_owner(self, bound: str) -> float:
         return self.ccu / self.owners.at(bound)
@@ -259,6 +293,9 @@ def build_cohort(records: dict, bound: str = "midpoint") -> tuple[list[Game], Co
                 price=price,
                 year=year,
                 genres=tuple(genres(store)),
+                # Tags only come from the per-app SteamSpy call, never from the
+                # `all` rows - which is what justifies paying for that call.
+                tags=tuple(sorted((spy.get("tags") or {}).items())),
             )
         )
 
@@ -293,7 +330,62 @@ def cohort_report(records: dict) -> str:
     return "\n".join(lines)
 
 
+def unclassified_top_tags(games: list[Game], limit: int = 30) -> list[tuple[str, int]]:
+    """For the games the vocabulary missed, the tag they would have fallen into.
+
+    This is the honest check on a hand-written allowlist. It names exactly which
+    tags to add next, ranked by how many games each would rescue, so the
+    vocabulary grows from what the catalogue actually contains rather than from
+    what seemed likely before the data arrived.
+    """
+    counter: Counter = Counter()
+    for game in games:
+        if game.classified:
+            continue
+        tags = {t: v for t, v in game.tags if t not in config.PRICING_MODEL_TAGS}
+        if not tags:
+            counter["(no tags at all)"] += 1
+            continue
+        counter[max(sorted(tags), key=lambda t: tags[t])] += 1
+    return counter.most_common(limit)
+
+
+def coverage_report(games: list[Game]) -> str:
+    """How much of the cohort the genre vocabulary classifies, and what it misses."""
+    by_pricing = split_by_pricing(games)
+    lines = [f"Genre vocabulary: {len(config.GENRE_TAGS)} tags", ""]
+
+    for label, group in (("all", games), ("f2p", by_pricing["f2p"]), ("paid", by_pricing["paid"])):
+        if not group:
+            continue
+        classified = sum(1 for g in group if g.classified)
+        share = 100 * classified / len(group)
+        lines.append(f"{label:>5}: {classified:,}/{len(group):,} classified ({share:.1f}%)")
+
+    # A coverage gap that falls unevenly on F2P vs paid is a bias, not just a
+    # gap - it would thin one side of every comparison. Worth seeing side by side.
+    lines.append("")
+    lines.append("Top tags among unclassified games (candidates for the vocabulary):")
+    for tag, count in unclassified_top_tags(games):
+        lines.append(f"    {count:>6,}  {tag}")
+
+    return "\n".join(lines)
+
+
+def _load_cohort() -> list[Game]:
+    from src import steamspy_fetch
+
+    catalogue = steamspy_fetch.fetch_catalogue()
+    records = steamspy_fetch.enrich(candidate_appids(catalogue))
+    games, _ = build_cohort(records)
+    return games
+
+
 def main(argv: list[str]) -> int:
+    if argv and argv[0] == "coverage":
+        print(coverage_report(_load_cohort()))
+        return 0
+
     if argv and argv[0] == "report":
         from src import steamspy_fetch
 
