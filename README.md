@@ -8,8 +8,9 @@ it is a tautology — free things get downloaded. The question is whether F2P
 *engagement* justifies the model, and whether any gap survives once you compare
 within genre instead of across the whole catalogue.
 
-**Status:** Phase 0 and Phase 1 built and tested. Blocked at the engagement metric —
-see below. Full plan: `spec-steam-pricing-engagement.md`.
+**Status:** Phases 0 and 1 built and tested; Phase 2's metric layer built after the
+original metric turned out to have no data behind it. Catalogue pull running. Full
+plan: `spec-steam-pricing-engagement.md`.
 
 ## Current state
 
@@ -19,7 +20,8 @@ see below. Full plan: `spec-steam-pricing-engagement.md`.
 | Storefront enrichment (price, genres, release date, is_free) | Built, tested, live-verified |
 | Owner-range interval handling + sensitivity bounds | Built, tested |
 | Inclusion rule (2015+, 20k owner floor) | Built, tested |
-| Headline engagement metric | **Blocked — the chosen metric has no data behind it** |
+| Headline engagement metric | Rebuilt on review payloads after SteamSpy's fields came back empty |
+| Stratified sampling by (pricing, genre) | Built, tested |
 | Naive vs genre-adjusted comparison | Not started |
 | Dashboard, deliverables, case study | Not started |
 
@@ -40,9 +42,10 @@ Eileen's calls, 2026-09-13:
   games that flopped are excluded, so the sample tilts toward titles that found
   an audience.
 - **Engagement metric (Checkpoint 1b).** Median playtime forever, with CCU per
-  owner as the robustness check. **This decision is now blocked** — see below.
+  owner as the robustness check. **Revised the same day**, after the chosen
+  metric was found to have no data behind it — see below.
 
-## The blocker: SteamSpy no longer carries playtime
+## What didn't work: SteamSpy no longer carries playtime
 
 The chosen headline metric has no data behind it. SteamSpy still returns the
 fields, but they are zero:
@@ -64,14 +67,33 @@ zeroed fields are a leftover of the old schema.
 Every playtime option the spec offered (median forever, median 2 weeks, average)
 dies with it. Only `ccu` survives on this source.
 
-**This needs Eileen.** The three ways forward are in `agent-log/TODO.md` under
-Roadmap project 3; the short version is: lead with CCU per owner, or get real
-playtime from Steam review payloads (`author.playtime_forever`, verified present
-and populated — median 6,041 minutes across 99 ELDEN RING reviewers), which is
-better data but forces a much smaller, sampled cohort.
+**What was done about it.** Playtime now comes from Steam's own review payloads:
+`author.playtime_forever`, which is populated (200 reviewers, median 5,761.5
+minutes for ELDEN RING, verified live). CCU per owner is kept as a second metric
+computed on the whole cohort.
 
-Nothing downstream of the metric has been built, because all of it — the naive
-comparison, the genre correction, the price bands — is computed *on* the metric.
+The alternative was to promote CCU per owner to headline, which needs no new pull
+at all. It was rejected on a measurement argument: CCU is a concurrency snapshot,
+structurally harsh on single-player paid games that have no reason to hold
+concurrent players — close enough to the F2P-vs-paid axis that the metric would
+be partly deciding the finding before the analysis ran.
+
+What the replacement costs, carried openly rather than absorbed:
+
+- **A median over reviewers is not a median over owners.** People who review have
+  played more than people who don't, so every playtime figure here is biased
+  upward. It stays comparable *across* games, which is what the question needs,
+  but it is not an estimate of what a typical owner played.
+- **Recent-reviewer skew.** Pages come back newest-first, so a long-lived game's
+  sample is its current reviewers, not its launch cohort. The alternative sort is
+  by helpfulness, which re-orders as votes accrue and would make the pull
+  unreproducible. Reproducibility won.
+- **Sampling.** A review pull per game is seconds and the cohort is thousands of
+  games, so playtime runs on a stratified sample by (pricing, primary genre) —
+  stratified rather than random because genre confounding is the project's core
+  analytical move, and random sampling would leave the smaller genre cells too
+  thin to compare within. Cells below the threshold are reported as thin rather
+  than quietly analysed.
 
 ## Running it
 
@@ -80,6 +102,8 @@ pip install -r requirements.txt
 python -m src.steamspy_fetch recon 570        # one app, both sources, to eyeball shapes
 python -m src.steamspy_fetch catalogue        # the `all` pages — slow, 60s between pages
 python -m src.cohort report                   # cohort size F2P vs paid, at all three bounds
+python -m src.playtime one 1245620            # one game's playtime median from reviews
+python -m src.playtime sample                 # the stratified playtime pull
 pytest
 ```
 

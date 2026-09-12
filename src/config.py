@@ -75,3 +75,47 @@ OWNER_BOUNDS = ("lower", "midpoint", "upper")
 
 # Price bands in AUD, upper bound exclusive; None means open-ended (spec Phase 2).
 PRICE_BANDS_AUD = ((0, 10), (10, 30), (30, 60), (60, None))
+
+# --- Phase 2: engagement metric, replacing SteamSpy's empty playtime fields ---
+#
+# Verified live 2026-09-13: SteamSpy serves median_forever, average_forever,
+# median_2weeks and average_2weeks, and all four are zero for all 1,000 apps on
+# the first `all` page and for both spot-checked apps. Playtime is therefore
+# taken from Steam review payloads instead - author.playtime_forever, which is
+# populated. Decided by Eileen 2026-09-13 after the fields were found empty.
+
+STEAM_APPREVIEWS_URL = "https://store.steampowered.com/appreviews/{appid}"
+
+# filter=recent sorts newest-first by creation date, so an identical re-run
+# returns an identical corpus. filter=all sorts by helpfulness and re-orders as
+# votes accrue, which would make the sample unreproducible.
+REVIEW_FILTER = "recent"
+REVIEW_LANGUAGE = "all"
+REVIEW_TYPE = "all"
+REVIEW_PURCHASE_TYPE = "all"
+REVIEWS_PER_PAGE = 100  # documented maximum; larger values are silently clamped
+
+# Reviewers sampled per game before taking the median. 200 is two pages: enough
+# that the median is stable, small enough that a few hundred games is a pull
+# measured in minutes rather than days.
+TARGET_REVIEWS_PER_GAME = 200
+
+# Stop paging a game that has fewer reviews than the target.
+MAX_REVIEW_PAGES_PER_GAME = 5
+
+REVIEW_DELAY_SECONDS = 1.5
+REVIEW_CACHE_DIR = RAW_DATA_DIR / "reviews"
+
+# A game with too few reviewers gets no playtime figure at all rather than a
+# median of five people.
+MIN_REVIEWERS_FOR_MEDIAN = 30
+
+# --- Stratified sampling ---
+#
+# The cohort is thousands of games and a review pull per game is ~3 seconds, so
+# the playtime metric runs on a sample. Strata are (pricing, primary genre)
+# because genre confounding is the project's core analytical move - sampling at
+# random would leave the smaller genre cells too thin to compare within.
+RANDOM_SEED = 42
+GAMES_PER_STRATUM = 25
+MIN_GAMES_PER_STRATUM = 8  # cells thinner than this are reported, not analysed
