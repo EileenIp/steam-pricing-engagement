@@ -1,0 +1,311 @@
+"""Phase 1: turn raw pulls into the comparison set.
+
+Everything ownership-related is an interval, never a number. SteamSpy stopped
+reporting exact owner counts when Steam's privacy changes landed, so a row says
+"1,000,000 .. 2,000,000" and the honest move is to carry that interval all the
+way through instead of silently collapsing it on the first line of analysis.
+
+Checkpoint decisions this module implements (Eileen, 2026-09-13):
+  - owner ranges: interval midpoint for the headline, every owner-dependent
+    result re-run at the lower and upper bound
+  - inclusion: released 2015 or later, owner midpoint at or above 20,000
+  - headline metric: median playtime forever; robustness check: CCU per owner
+
+Run: python -m src.cohort report
+"""
+from __future__ import annotations
+
+import re
+import sys
+from collections import Counter
+from dataclasses import dataclass
+
+from src import config
+
+# SteamSpy formats owners as "1,000,000 .. 2,000,000". Tolerant of the separator
+# drifting (extra spaces, a non-breaking space) because the string is scraped
+# presentation, not a contract.
+_OWNER_SPLIT = re.compile(r"\.\.")
+_DIGITS = re.compile(r"\d+")
+_YEAR = re.compile(r"\b(19|20)\d{2}\b")
+
+
+class OwnerParseError(ValueError):
+    pass
+
+
+@dataclass(frozen=True)
+class OwnerRange:
+    """An owner count as SteamSpy actually knows it: a band, not a number."""
+
+    lower: int
+    upper: int
+
+    @property
+    def midpoint(self) -> float:
+        return (self.lower + self.upper) / 2
+
+    def at(self, bound: str) -> float:
+        if bound == "lower":
+            return float(self.lower)
+        if bound == "upper":
+            return float(self.upper)
+        if bound == "midpoint":
+            return self.midpoint
+        raise ValueError(f"unknown bound: {bound}")
+
+
+def parse_owner_range(raw: str) -> OwnerRange:
+    """'1,000,000 .. 2,000,000' -> OwnerRange(1000000, 2000000)."""
+    if raw is None:
+        raise OwnerParseError("owners field was absent")
+
+    parts = _OWNER_SPLIT.split(str(raw))
+    if len(parts) != 2:
+        raise OwnerParseError(f"expected two bounds, got {raw!r}")
+
+    bounds = []
+    for part in parts:
+        digits = "".join(_DIGITS.findall(part))
+        if not digits:
+            raise OwnerParseError(f"no digits in bound {part!r} of {raw!r}")
+        bounds.append(int(digits))
+
+    lower, upper = bounds
+    if upper < lower:
+        raise OwnerParseError(f"upper bound below lower in {raw!r}")
+    return OwnerRange(lower, upper)
+
+
+def format_owner_range(owners: OwnerRange) -> str:
+    """Inverse of parse_owner_range, in SteamSpy's own formatting."""
+    return f"{owners.lower:,} .. {owners.upper:,}"
+
+
+# --- storefront field extraction --------------------------------------------
+
+
+def release_year(store_entry: dict) -> int | None:
+    """Year from the storefront's free-text release date, or None if unusable.
+
+    The field is presentation text ("12 Aug, 2024", "Q3 2025", "Coming soon"),
+    so only the year is trusted. Unreleased and undated apps return None and are
+    excluded, with the count reported rather than buried.
+    """
+    if not store_entry.get("success"):
+        return None
+    release = (store_entry.get("data") or {}).get("release_date") or {}
+    if release.get("coming_soon"):
+        return None
+    match = _YEAR.search(str(release.get("date", "")))
+    return int(match.group(0)) if match else None
+
+
+def price_aud(store_entry: dict) -> float | None:
+    """Current AUD price. 0.0 for free apps, None when the storefront won't say."""
+    if not store_entry.get("success"):
+        return None
+    data = store_entry.get("data") or {}
+    if data.get("is_free"):
+        return 0.0
+    overview = data.get("price_overview")
+    if not overview:
+        # Paid app with no price block: usually delisted-but-listed, or a regional
+        # gap. Not guessed at — excluded, and counted as such.
+        return None
+    if overview.get("currency") != "AUD":
+        # cc=au should guarantee AUD. If it ever doesn't, the band boundaries would
+        # silently mean something else, so refuse rather than convert.
+        return None
+    return overview["final"] / 100.0
+
+
+def genres(store_entry: dict) -> list[str]:
+    if not store_entry.get("success"):
+        return []
+    return [g["description"] for g in (store_entry.get("data") or {}).get("genres", [])]
+
+
+def price_band(price: float) -> str:
+    """AUD band label for a paid game."""
+    for low, high in config.PRICE_BANDS_AUD:
+        if high is None:
+            if price >= low:
+                return f"{low}+"
+        elif low <= price < high:
+            return f"{low}-{high}"
+    raise ValueError(f"price outside every band: {price}")
+
+
+# --- the comparison set -----------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Game:
+    appid: int
+    name: str
+    owners: OwnerRange
+    median_forever: int
+    ccu: int
+    pricing: str  # "f2p" or "paid"
+    price: float
+    year: int
+    genres: tuple[str, ...]
+
+    @property
+    def primary_genre(self) -> str:
+        # Steam lists genres in a fixed order per app; the first is the one the
+        # store leads with. Broad, but it is the only genre signal both sources
+        # agree on, and SteamSpy's user tags are a popularity contest.
+        return self.genres[0] if self.genres else "Uncategorised"
+
+    def ccu_per_owner(self, bound: str) -> float:
+        return self.ccu / self.owners.at(bound)
+
+
+def classify_pricing(store_entry: dict) -> str | None:
+    """'f2p', 'paid', or None when the storefront gives nothing to go on.
+
+    The storefront's is_free flag is the authority, not price == 0, because a
+    temporarily-free promotion also reads as zero. One thing this cannot see: a
+    paid game that went free-to-play later reads as F2P today, since both sources
+    report current state, not launch state. That is a stated limitation, not a
+    bug to paper over - it is also exactly the publisher decision the project is
+    about, so it belongs in the write-up.
+    """
+    if not store_entry.get("success"):
+        return None
+    data = store_entry.get("data") or {}
+    if data.get("is_free"):
+        return "f2p"
+    price = price_aud(store_entry)
+    return "paid" if price is not None else None
+
+
+def candidate_appids(catalogue: dict) -> list[int]:
+    """Pre-filter the catalogue before paying 2.5s per app to enrich it.
+
+    Only the owner floor is applied here - release year and genre live on the
+    storefront, which is the thing being paid for. Applied at the *upper* bound
+    so nothing that could survive the real filter at any bound is discarded
+    before it has been looked at.
+    """
+    out = []
+    for appid, row in catalogue.items():
+        try:
+            owners = parse_owner_range(row.get("owners"))
+        except OwnerParseError:
+            continue
+        if owners.upper >= config.MIN_OWNERS_MIDPOINT:
+            out.append(int(appid))
+    return sorted(out)
+
+
+def build_cohort(records: dict, bound: str = "midpoint") -> tuple[list[Game], Counter]:
+    """Apply the inclusion rule at one owner bound. Returns (games, exclusions).
+
+    The cohort itself moves with the bound: the owner floor is applied to an
+    interval, so a game sitting on the boundary is in at the upper bound and out
+    at the lower one. Reporting one cohort size would hide that.
+    """
+    games: list[Game] = []
+    excluded: Counter = Counter()
+
+    for appid, record in records.items():
+        spy = record.get("steamspy") or {}
+        store = record.get("store") or {}
+
+        try:
+            owners = parse_owner_range(spy.get("owners"))
+        except OwnerParseError:
+            excluded["unparseable owners"] += 1
+            continue
+
+        if owners.at(bound) < config.MIN_OWNERS_MIDPOINT:
+            excluded["below owner floor"] += 1
+            continue
+
+        year = release_year(store)
+        if year is None:
+            excluded["no usable release date"] += 1
+            continue
+        if year < config.MIN_RELEASE_YEAR:
+            excluded[f"released before {config.MIN_RELEASE_YEAR}"] += 1
+            continue
+
+        pricing = classify_pricing(store)
+        if pricing is None:
+            excluded["pricing not determinable"] += 1
+            continue
+
+        price = price_aud(store)
+        if price is None:
+            excluded["pricing not determinable"] += 1
+            continue
+
+        median = spy.get("median_forever")
+        if median is None:
+            excluded["no playtime median"] += 1
+            continue
+
+        games.append(
+            Game(
+                appid=int(appid),
+                name=spy.get("name", f"app {appid}"),
+                owners=owners,
+                median_forever=int(median),
+                ccu=int(spy.get("ccu") or 0),
+                pricing=pricing,
+                price=price,
+                year=year,
+                genres=tuple(genres(store)),
+            )
+        )
+
+    return games, excluded
+
+
+def split_by_pricing(games: list[Game]) -> dict[str, list[Game]]:
+    """F2P and paid, as disjoint sets by construction - one pass, one label each."""
+    out: dict[str, list[Game]] = {"f2p": [], "paid": []}
+    for game in games:
+        out[game.pricing].append(game)
+    return out
+
+
+def cohort_report(records: dict) -> str:
+    """Phase 1's deliverable: how many games survive, F2P vs paid, at each bound."""
+    lines = [
+        "Comparison set - released "
+        f"{config.MIN_RELEASE_YEAR}+, owner floor {config.MIN_OWNERS_MIDPOINT:,}",
+        "",
+    ]
+    for bound in config.OWNER_BOUNDS:
+        games, excluded = build_cohort(records, bound)
+        split = split_by_pricing(games)
+        lines.append(
+            f"{bound:>9} bound: {len(games):,} games "
+            f"({len(split['f2p']):,} F2P / {len(split['paid']):,} paid)"
+        )
+        for reason, count in excluded.most_common():
+            lines.append(f"            excluded, {reason}: {count:,}")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def main(argv: list[str]) -> int:
+    if argv and argv[0] == "report":
+        from src import steamspy_fetch
+
+        catalogue = steamspy_fetch.fetch_catalogue()
+        candidates = candidate_appids(catalogue)
+        records = steamspy_fetch.enrich(candidates)
+        print(cohort_report(records))
+        return 0
+
+    print(__doc__)
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))
