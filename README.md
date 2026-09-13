@@ -24,8 +24,9 @@ plan: `spec-steam-pricing-engagement.md`.
 | Genre stratification on SteamSpy tags | Built, tested, audited on 1,000 games |
 | Catalogue pull | Complete — 27,021 apps, 26,017 above the owner floor |
 | Stratified sampling by (pricing, genre) | Built, tested |
-| Naive vs genre-adjusted comparison | Built and tested; validated on the sample |
+| Naive vs genre-adjusted comparison | Run on the full cohort, both metrics |
 | Rank statistics (Mann-Whitney, Cliff's delta) | Built, tested |
+| Playtime pull | Complete — 3,497 games, 0 failures |
 | Dashboard, deliverables, case study | Not started |
 
 ## Decisions so far
@@ -214,6 +215,53 @@ A formatting bug surfaced at the same time and is worth noting because of how it
 looked: every CCU median printed as `0`. The values are around 1e-5, and a single
 format string cannot span those and playtime's thousands of minutes. It read
 exactly like a broken metric.
+
+## The result
+
+Median playtime, F2P against paid, on 2,797 games with a usable reviewer sample:
+
+| | F2P | paid |
+|---|---|---|
+| median playtime (minutes) | 124 | 530 |
+| n | 1,198 | 1,599 |
+
+Cliff's delta **-0.457** naive, **-0.482** genre-adjusted across 58 genres, and
+identical at all three owner bounds.
+
+The spec expected the naive gap to prove mostly a genre effect. It is wrong
+twice over. There is no F2P engagement advantage to explain away — paid games
+out-play free ones more than four to one — and correcting for genre makes paid's
+lead *slightly larger*, not smaller. Whatever drives this, it is not that F2P
+concentrates in genres that happen to play short.
+
+The exceptions are the interesting part. F2P wins in exactly the genres built
+around long passive sessions, and loses everywhere else:
+
+| genre | F2P | paid | delta |
+|---|---|---|---|
+| Clicker | 530 | 218 | **+0.353** |
+| Idler | 2,723 | 1,764 | +0.007 |
+| MMORPG | 1,216 | 2,810 | -0.392 |
+| Visual Novel | 83 | 587 | -0.726 |
+| Racing | 27 | 189 | -0.827 |
+
+And price, not pricing model, is the stronger signal — the same direction the
+CCU cross-check found, which is what a cross-check is for:
+
+| band (AUD) | n | median playtime |
+|---|---|---|
+| 0–10 | 549 | 233 |
+| 10–30 | 807 | 630 |
+| 30–60 | 201 | 1,420 |
+| 60+ | 42 | 2,484 |
+
+**What would weaken this.** 700 of the 3,497 sampled games (20%) had fewer than
+30 reviewers and were dropped rather than given a median on thin evidence. That
+attrition is uneven — 22.5% of paid games against 16.5% of F2P — so the paid
+sample lost more of its small titles, and small titles plausibly play shorter.
+The gap is therefore more likely overstated than understated. On top of that,
+every figure is a median over reviewers rather than over owners, and reviewers
+play more than owners do.
 
 ## Running it
 
