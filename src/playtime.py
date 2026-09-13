@@ -182,9 +182,11 @@ def main(argv: list[str]) -> int:
     if argv and argv[0] == "sample":
         from src import steamspy_fetch
 
-        catalogue = steamspy_fetch.fetch_catalogue()
-        records = steamspy_fetch.enrich(cohort.candidate_appids(catalogue))
-        games, _ = cohort.build_cohort(records)
+        def load_records():
+            catalogue = steamspy_fetch.fetch_catalogue()
+            return steamspy_fetch.enrich(cohort.candidate_appids(catalogue))
+
+        games = cohort.load_cohort(load_records, refresh="--refresh" in argv)
         sample, sizes = stratified_sample(games)
         print(f"{len(games)} games in cohort, {len(sizes)} cells, {len(sample)} sampled")
         for key in thin_cells(sizes):
