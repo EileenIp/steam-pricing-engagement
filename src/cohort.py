@@ -15,6 +15,7 @@ Run: python -m src.cohort report
 """
 from __future__ import annotations
 
+import json
 import random
 import re
 import sys
@@ -388,6 +389,62 @@ def coverage_report(games: list[Game]) -> str:
         lines.append(f"    {count:>6,}  {tag}")
 
     return "\n".join(lines)
+
+
+def _game_to_dict(game: Game) -> dict:
+    return {
+        "appid": game.appid,
+        "name": game.name,
+        "owners": format_owner_range(game.owners),
+        "median_forever": game.median_forever,
+        "ccu": game.ccu,
+        "pricing": game.pricing,
+        "price": game.price,
+        "year": game.year,
+        "genres": list(game.genres),
+        "tags": [list(t) for t in game.tags],
+    }
+
+
+def _game_from_dict(raw: dict) -> Game:
+    return Game(
+        appid=raw["appid"],
+        name=raw["name"],
+        owners=parse_owner_range(raw["owners"]),
+        median_forever=raw["median_forever"],
+        ccu=raw["ccu"],
+        pricing=raw["pricing"],
+        price=raw["price"],
+        year=raw["year"],
+        genres=tuple(raw["genres"]),
+        tags=tuple((t[0], t[1]) for t in raw["tags"]),
+    )
+
+
+def load_cohort(records_loader, bound: str = "midpoint", refresh: bool = False) -> list[Game]:
+    """The built cohort, cached as one file so the raw archive is parsed once.
+
+    Building from raw means reading and JSON-parsing every cached payload - about
+    400 MB of storefront responses - which takes ten minutes and produces the
+    same answer every time. The analysis gets re-run constantly while tuning, so
+    the built cohort is written out once per bound and reloaded after.
+
+    `refresh=True` rebuilds from raw. Do that whenever the enrichment has fetched
+    anything new, or the inclusion rule changes - a stale cohort is a worse
+    failure than a slow one, because it is silent.
+    """
+    path = config.PROCESSED_DATA_DIR / f"cohort_{bound}.json"
+    if path.exists() and not refresh:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        return [_game_from_dict(g) for g in raw["games"]]
+
+    games, excluded = build_cohort(records_loader(), bound)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps({"bound": bound, "excluded": dict(excluded), "games": [_game_to_dict(g) for g in games]}),
+        encoding="utf-8",
+    )
+    return games
 
 
 def audit_sample(catalogue: dict, size: int | None = None) -> list[int]:

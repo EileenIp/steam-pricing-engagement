@@ -270,3 +270,27 @@ def test_no_tie_warning_when_values_separate_cleanly():
 
     assert result.tied_at_zero == 0.0
     assert "ties@0" not in str(result)
+
+
+def test_a_flag_is_never_parsed_as_the_metric_name(monkeypatch, tmp_path):
+    # `analysis full --refresh` read "--refresh" as the metric and crashed after
+    # ten minutes of rebuilding, which is the worst moment to find out.
+    monkeypatch.setattr(analysis.config, "PROCESSED_DATA_DIR", tmp_path)
+    seen = {}
+
+    def fake_load_cohort(loader, bound="midpoint", refresh=False):
+        seen["refresh"] = refresh
+        return []
+
+    def fake_report(games, metric, playtimes=None):
+        seen["metric"] = metric
+        return ""
+
+    monkeypatch.setattr(analysis.cohort, "load_cohort", fake_load_cohort)
+    monkeypatch.setattr(analysis, "report", fake_report)
+
+    assert analysis.main(["full", "--refresh"]) == 0
+    assert seen == {"refresh": True, "metric": "ccu_per_owner"}
+
+    assert analysis.main(["full", "playtime", "--refresh"]) == 0
+    assert seen["metric"] == "playtime"

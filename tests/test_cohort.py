@@ -333,3 +333,42 @@ def test_software_is_excluded_from_a_games_comparison():
 
     assert [g.appid for g in games] == [2]
     assert excluded["not a game (software)"] == 1
+
+
+def test_cohort_cache_round_trips_and_parses_raw_only_once(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "PROCESSED_DATA_DIR", tmp_path)
+    records = {
+        "1": record(1, "1,000,000 .. 2,000,000", is_free=True, tags=DOTA_TAGS),
+        "2": record(2, "500,000 .. 1,000,000", is_free=False, tags=ELDEN_RING_TAGS),
+    }
+    calls = []
+
+    def loader():
+        calls.append(1)
+        return records
+
+    first = cohort.load_cohort(loader)
+    second = cohort.load_cohort(loader)
+
+    assert len(calls) == 1, "the second load must come from cache, not re-parse raw"
+    assert [g.appid for g in first] == [g.appid for g in second]
+    # The fields the analysis actually uses must survive the round trip intact.
+    assert [(g.pricing, g.primary_genre, g.price, g.year, g.ccu) for g in first] == \
+           [(g.pricing, g.primary_genre, g.price, g.year, g.ccu) for g in second]
+    assert first[0].owners == second[0].owners
+
+
+def test_refresh_rebuilds_from_raw(tmp_path, monkeypatch):
+    # A stale cohort is a worse failure than a slow one, because it is silent.
+    monkeypatch.setattr(config, "PROCESSED_DATA_DIR", tmp_path)
+    records = {"1": record(1, "1,000,000 .. 2,000,000", tags=DOTA_TAGS)}
+    calls = []
+
+    def loader():
+        calls.append(1)
+        return records
+
+    cohort.load_cohort(loader)
+    cohort.load_cohort(loader, refresh=True)
+
+    assert len(calls) == 2

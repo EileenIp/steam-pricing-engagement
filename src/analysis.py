@@ -17,8 +17,10 @@ Cliff's delta reads directly: +1 means every F2P game out-plays every paid game,
 -1 the reverse, 0 no separation. It is also the same quantity as the rank-biserial
 correlation, so it can be quoted either way.
 
-Run: python -m src.analysis sample          (the audit sample, CCU metric)
-     python -m src.analysis sample playtime (needs the playtime pull first)
+Run: python -m src.analysis sample          (the 1,000-game audit sample)
+     python -m src.analysis full            (the whole cohort)
+     python -m src.analysis full --refresh  (rebuild from the raw archive)
+     python -m src.analysis full playtime   (needs the playtime pull first)
 """
 from __future__ import annotations
 
@@ -315,17 +317,30 @@ def report(games: list[cohort.Game], metric: str, playtimes: dict | None = None)
 
 
 def main(argv: list[str]) -> int:
-    if not argv or argv[0] != "sample":
+    if not argv or argv[0] not in ("sample", "full"):
         print(__doc__)
         return 1
 
-    metric = argv[1] if len(argv) > 1 else "ccu_per_owner"
+    refresh = "--refresh" in argv
+    # Positional args only, so a flag is never mistaken for the metric name.
+    positional = [a for a in argv[1:] if not a.startswith("-")]
+    metric = positional[0] if positional else "ccu_per_owner"
 
     from src import steamspy_fetch
 
-    catalogue = steamspy_fetch.fetch_catalogue()
-    records = steamspy_fetch.enrich(cohort.audit_sample(catalogue))
-    games, _ = cohort.build_cohort(records)
+
+    def load_records():
+        catalogue = steamspy_fetch.fetch_catalogue()
+        appids = (
+            cohort.candidate_appids(catalogue)
+            if argv[0] == "full"
+            else cohort.audit_sample(catalogue)
+        )
+        return steamspy_fetch.enrich(appids)
+
+    # Cached per scope, so the 400 MB raw archive is parsed once rather than on
+    # every run. Pass --refresh after any new enrichment.
+    games = cohort.load_cohort(load_records, refresh=refresh)
 
     playtimes = None
     if metric == "playtime":
