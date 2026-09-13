@@ -22,6 +22,7 @@ import sys
 from collections import Counter
 from dataclasses import dataclass
 
+from src import console
 from src import config
 
 # SteamSpy formats owners as "1,000,000 .. 2,000,000". Tolerant of the separator
@@ -479,6 +480,7 @@ def _load_cohort(sample_size: int | None = None) -> list[Game]:
 
 
 def main(argv: list[str]) -> int:
+    console.use_utf8()
     if argv and argv[0] == "coverage":
         # `coverage` samples by default; `coverage full` audits every candidate.
         sample_size = None if argv[1:2] == ["full"] else config.AUDIT_SAMPLE_SIZE

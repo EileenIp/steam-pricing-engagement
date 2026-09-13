@@ -30,6 +30,7 @@ import sys
 from collections import defaultdict
 from dataclasses import dataclass
 
+from src import console
 from src import config, cohort
 
 
@@ -317,6 +318,7 @@ def report(games: list[cohort.Game], metric: str, playtimes: dict | None = None)
 
 
 def main(argv: list[str]) -> int:
+    console.use_utf8()
     if not argv or argv[0] not in ("sample", "full"):
         print(__doc__)
         return 1

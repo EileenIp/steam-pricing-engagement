@@ -36,6 +36,7 @@ from dataclasses import dataclass
 
 import requests
 
+from src import console
 from src import config, cohort
 from src.steamspy_fetch import _PACER, _http_get, _write_json
 
@@ -174,6 +175,7 @@ def thin_cells(cell_sizes: dict[tuple[str, str], int]) -> list[tuple[str, str]]:
 
 
 def main(argv: list[str]) -> int:
+    console.use_utf8()
     if argv and argv[0] == "one":
         result = sample_playtime(int(argv[1]))
         print(result)

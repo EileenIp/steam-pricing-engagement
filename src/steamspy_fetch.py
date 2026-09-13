@@ -29,6 +29,7 @@ from pathlib import Path
 
 import requests
 
+from src import console
 from src import config
 
 
@@ -276,6 +277,7 @@ def recon(appid: int) -> dict:
 
 
 def main(argv: list[str]) -> int:
+    console.use_utf8()
     if not argv:
         print(__doc__)
         return 1
