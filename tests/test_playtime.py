@@ -177,3 +177,66 @@ def test_thin_cells_are_reported(monkeypatch):
     _, sizes = playtime.stratified_sample(population())
 
     assert playtime.thin_cells(sizes) == [("f2p", "Racing")]
+
+
+# --- failure handling --------------------------------------------------------
+
+
+class Sample:
+    """Minimal stand-in for a cohort.Game in the pull loop."""
+
+    def __init__(self, appid):
+        self.appid = appid
+        self.name = f"Game {appid}"
+
+
+def test_one_dead_app_does_not_end_the_pull(monkeypatch):
+    # Delisted and region-locked games are routine. Ending a three-hour run over
+    # one of them throws away everything after it.
+    def fake(appid, session=None):
+        if appid == 2:
+            raise steamspy_fetch.SteamAPIError("gone")
+        return playtime.PlaytimeSample(appid, 200, 100.0, 0)
+
+    monkeypatch.setattr(playtime, "sample_playtime", fake)
+    results, failed, aborted = playtime.pull_playtimes([Sample(i) for i in range(1, 6)])
+
+    assert aborted is False
+    assert failed == [2]
+    assert sorted(results) == [1, 3, 4, 5]
+
+
+def test_a_dead_network_stops_the_pull_fast(monkeypatch):
+    # With no connectivity every game burns ~3 minutes of retries, so continuing
+    # would spend hours failing and cache nothing worth resuming from.
+    monkeypatch.setattr(config, "MAX_CONSECUTIVE_FAILURES", 3)
+
+    def fake(appid, session=None):
+        if appid <= 2:
+            return playtime.PlaytimeSample(appid, 200, 100.0, 0)
+        raise steamspy_fetch.SteamAPIError("connection refused")
+
+    monkeypatch.setattr(playtime, "sample_playtime", fake)
+    results, failed, aborted = playtime.pull_playtimes([Sample(i) for i in range(1, 200)])
+
+    assert aborted is True
+    assert failed == [3, 4, 5], "should stop at the threshold, not grind through 199 games"
+    assert sorted(results) == [1, 2], "the successful games are still returned"
+
+
+def test_the_consecutive_counter_resets_on_success(monkeypatch):
+    # Scattered failures must not accumulate into a false network-down verdict.
+    monkeypatch.setattr(config, "MAX_CONSECUTIVE_FAILURES", 3)
+    bad = {2, 4, 6, 8}
+
+    def fake(appid, session=None):
+        if appid in bad:
+            raise steamspy_fetch.SteamAPIError("gone")
+        return playtime.PlaytimeSample(appid, 200, 100.0, 0)
+
+    monkeypatch.setattr(playtime, "sample_playtime", fake)
+    results, failed, aborted = playtime.pull_playtimes([Sample(i) for i in range(1, 11)])
+
+    assert aborted is False
+    assert failed == [2, 4, 6, 8]
+    assert len(results) == 6

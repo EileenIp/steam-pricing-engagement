@@ -226,3 +226,10 @@ NON_GAME_STORE_GENRES = frozenset({
     "Video Production", "Audio Production", "Photo Editing", "Software Training",
     "Web Publishing", "Game Development", "Education", "Accounting",
 })
+
+# A single dead app must not end a three-hour pull - delisted games and one-off
+# blips are normal. A dead *network* should end it immediately, though: with no
+# connectivity every game burns its full retry budget, about three minutes each,
+# so a silent outage would spend hours marking the whole sample failed and leave
+# nothing cached to resume from. Consecutive failures tell the two apart.
+MAX_CONSECUTIVE_FAILURES = 5

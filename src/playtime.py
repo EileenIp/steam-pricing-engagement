@@ -38,7 +38,7 @@ import requests
 
 from src import console
 from src import config, cohort
-from src.steamspy_fetch import _PACER, _http_get, _write_json
+from src.steamspy_fetch import _PACER, _http_get, _write_json, SteamAPIError
 
 
 @dataclass(frozen=True)
@@ -174,6 +174,47 @@ def thin_cells(cell_sizes: dict[tuple[str, str], int]) -> list[tuple[str, str]]:
     return sorted(k for k, n in cell_sizes.items() if n < config.MIN_GAMES_PER_STRATUM)
 
 
+def pull_playtimes(sample, session=None):
+    """Pull each game's playtime. Returns (results, failed appids, aborted).
+
+    Two failure modes that look identical per-request and must not be treated
+    alike. A single app failing is routine - delisted, region-locked, a blip -
+    and ending a three-hour run over one of them wastes everything after it. The
+    network being gone is not routine: every remaining game would burn its full
+    retry budget, roughly three minutes each, so the run would spend hours
+    marking the whole sample failed and cache nothing to resume from.
+
+    Consecutive failures separate them. Isolated failures are recorded and
+    stepped over; a run of them stops the pull immediately so the cache stays a
+    clean partial result that a restart can continue from.
+    """
+    results: dict[int, PlaytimeSample] = {}
+    failed: list[int] = []
+    consecutive = 0
+
+    for index, game in enumerate(sample, start=1):
+        try:
+            result = sample_playtime(game.appid, session)
+        except SteamAPIError as exc:
+            failed.append(game.appid)
+            consecutive += 1
+            print(f"{index}/{len(sample)} {game.name}: FAILED ({exc})", flush=True)
+            if consecutive >= config.MAX_CONSECUTIVE_FAILURES:
+                print(
+                    f"stopping after {consecutive} consecutive failures — the network is "
+                    f"probably down. {len(results):,} games are cached; re-run to continue.",
+                    flush=True,
+                )
+                return results, failed, True
+            continue
+
+        consecutive = 0
+        results[game.appid] = result
+        print(f"{index}/{len(sample)} {game.name}: {result}", flush=True)
+
+    return results, failed, False
+
+
 def main(argv: list[str]) -> int:
     console.use_utf8()
     if argv and argv[0] == "one":
@@ -195,10 +236,12 @@ def main(argv: list[str]) -> int:
             print(f"  thin cell (reported, not analysed): {key} = {sizes[key]}")
 
         with requests.Session() as session:
-            for index, game in enumerate(sample, start=1):
-                result = sample_playtime(game.appid, session)
-                print(f"{index}/{len(sample)} {game.name}: {result}", flush=True)
-        return 0
+            results, failed, aborted = pull_playtimes(sample, session)
+
+        print()
+        print(f"{len(results):,} pulled, {len(failed)} failed"
+              + (" - ABORTED, see above" if aborted else ""))
+        return 1 if aborted else 0
 
     print(__doc__)
     return 1
