@@ -27,7 +27,10 @@ plan: `spec-steam-pricing-engagement.md`.
 | Naive vs genre-adjusted comparison | Run on the full cohort, both metrics |
 | Rank statistics (Mann-Whitney, Cliff's delta) | Built, tested |
 | Playtime pull | Complete — 3,497 games, 0 failures |
-| Dashboard, deliverables, case study | Not started |
+| Written report (4pp) | Done — `deliverables/` |
+| Stakeholder deck (9 slides) | Done — `deliverables/` |
+| Website case study | Written — `deliverables/case-study-entry.json` |
+| Dashboard | Not started |
 
 ## Decisions so far
 
@@ -262,6 +265,20 @@ sample lost more of its small titles, and small titles plausibly play shorter.
 The gap is therefore more likely overstated than understated. On top of that,
 every figure is a median over reviewers rather than over owners, and reviewers
 play more than owners do.
+
+## Deliverables
+
+- `deliverables/f2p-vs-paid-engagement-report.docx` — the written report, four
+  pages, built by `app/build_report.js`.
+- `deliverables/f2p-vs-paid-engagement-deck.pptx` — nine slides for a
+  non-technical audience, built by `app/build_deck.js`.
+- `deliverables/case-study-entry.json` — the portfolio case study, ready to drop
+  into the site's `data/projects.json` as one array element.
+
+Both documents were rendered and read before committing, not just generated. That
+caught a genuinely misleading chart: the naive and genre-adjusted effect sizes
+differ by 0.025, and an auto-scaled bar axis drew them as a dramatic gap. It is
+now two numbers side by side, which is what a 5% difference honestly looks like.
 
 ## Running it
 
