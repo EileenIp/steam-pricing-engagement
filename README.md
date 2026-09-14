@@ -8,6 +8,8 @@ it is a tautology — free things get downloaded. The question is whether F2P
 *engagement* justifies the model, and whether any gap survives once you compare
 within genre instead of across the whole catalogue.
 
+**[Live dashboard](https://eileenip.github.io/steam-pricing-engagement/dashboard/)**
+
 **Status:** Phases 0 and 1 built and tested; Phase 2's metric layer built after the
 original metric turned out to have no data behind it. Catalogue pull running. Full
 plan: `spec-steam-pricing-engagement.md`.
@@ -274,10 +276,9 @@ play more than owners do.
   non-technical audience, built by `app/build_deck.js`.
 - `deliverables/case-study-entry.json` — the portfolio case study, now live on
   the site.
-- `dashboard/index.html` — the interactive dashboard. Data is embedded rather
-  than fetched, so the single file works opened straight off disk as well as
-  served; this repo has no Pages site, and a dashboard nobody can open is not a
-  deliverable. Rebuild with `python -m src.export_dashboard && python
+- **[Live dashboard](https://eileenip.github.io/steam-pricing-engagement/dashboard/)**
+  — `dashboard/index.html`. Data is embedded rather than fetched, so the single
+  file works opened straight off disk as well as served. Rebuild with `python -m src.export_dashboard && python
   app/build_dashboard.py`.
 
 The dashboard answers the spec's request for an owner-range uncertainty ribbon by
