@@ -6,9 +6,9 @@
   "projectType": "Statistical Analysis",
   "serviceType": "Analysis + Dashboard",
   "tools": ["Python", "pandas", "SteamSpy API", "Steam Web API", "pytest"],
-  "impactStat": "Free-to-play games are played a quarter as long as paid ones — 124 median minutes against 530 — and correcting for genre makes the gap wider, not narrower",
-  "oneSentenceDescription": "A 20,761-game study of whether going free-to-play actually buys engagement on Steam, built to kill the tautology that free things get downloaded more, and to test whether any gap survives comparing like genre with like.",
   "cardDescription": "Does going free-to-play actually buy engagement? Across 20,761 Steam games, free titles are played a quarter as long as paid ones — and comparing within genre makes the gap wider, not narrower.",
+  "impactStat": "Free games are played a quarter as long as paid ones — 124 median minutes against 530 — and correcting for genre widens the gap rather than explaining it",
+  "oneSentenceDescription": "A 20,761-game study of whether going free-to-play actually buys engagement on Steam, built to kill the tautology that free things get downloaded more, and to test whether any gap survives comparing like genre with like.",
   "targetIndustryRole": "Data Analyst, Data Scientist (gaming, product analytics)",
   "sectionHeadlines": {
     "summaryImpact": "Going free does not buy engagement",
@@ -27,20 +27,120 @@
     { "value": "105", "label": "tests across the pull, the cohort and the statistics" }
   ],
   "summaryImpact": "I set out to test a claim studios act on: that going free-to-play buys engagement. On Steam it does not. Across 20,761 games released since 2015, free games have a median playtime of 124 minutes against 530 for paid ones — a gap of more than four to one. The obvious objection is that free games cluster in genres that are simply played less, so I compared within genre across the 58 genres holding enough of both models. That correction was supposed to shrink the gap. It widened it, from a Cliff's delta of -0.457 to -0.482. The finding is not that the free-to-play advantage is a genre effect. It is that there is no advantage to explain.",
-  "problemSpace": "A studio choosing a launch pricing model, or a publisher deciding whether to take an ageing paid title free, wants to know what the model buys in engagement. The trap is that the obvious analysis answers a different question: free games have more owners, which is a tautology, because free things get downloaded. The question worth asking is whether players who take a free game stay in it as long as players who paid, and whether any difference holds once you stop comparing a free MOBA against a paid visual novel.",
-  "stakeholders": "Studio leadership choosing a launch pricing model; publishers weighing a free-to-play conversion for an existing title; live-ops and product teams forecasting engagement from price.",
-  "inputs": "SteamSpy's full catalogue — 27,021 apps, paged at the documented one-request-per-minute limit — enriched app by app from the Steam storefront for AUD price, genres, release date and the free-to-play flag. 26,017 apps, 52,034 requests, 7 failures. Every response is cached to disk untransformed, so a re-run returns identical data and an interrupted pull resumes instead of restarting. Playtime comes from Steam review payloads: 3,497 games sampled, up to 200 reviewers each.",
-  "categoryLeader": "Paid games at 60 AUD and above hold a median 2,484 minutes, more than ten times the 233 minutes of games under 10 AUD.",
-  "priceBehaviour": "Median playtime rises monotonically across every AUD price band: 233 minutes under 10, 630 in 10-30, 1,420 in 30-60, and 2,484 above 60. Price level separates engagement far more cleanly than the free-versus-paid split does.",
-  "surprisingPatterns": "Free-to-play wins in exactly one genre — Clicker, 530 minutes against 218 — and ties in Idler. Both are built around long passive sessions, and both are places where free-to-play is the native model rather than a discount. Everywhere else paid wins, including MMORPG (1,216 against 2,810), where a free model should have its strongest case.",
-  "hypothesisVsReality": "I expected the naive gap to be largely a genre artefact: that free-to-play concentrates in genres that play short, and that correcting for genre would collapse the difference. The opposite happened. The genre-adjusted effect size (-0.482) is slightly larger than the naive one (-0.457). Whatever produces the gap, it is not the mix of genres that go free.",
-  "deadEnds": "The headline metric died mid-project. The plan was SteamSpy's median playtime, which it still serves — as zeroes. All four playtime fields are zero for every one of the 1,000 apps on the first catalogue page, and for both apps I spot-checked. The plain reading is that Steam's profile-privacy changes removed the sample those figures were derived from, leaving the old schema behind. Every playtime option the plan offered died with it, so the metric was rebuilt on per-player playtime from Steam review payloads.",
-  "secondaryModel": "Concurrent players per owner, computed across the whole 20,761-game cohort as a cross-check on the sampled playtime metric. It agrees on direction (naive -0.109, genre-adjusted -0.092) and independently reproduces the price-band gradient. But 54% of the cohort has a concurrent-player count of exactly zero, so it is mostly ties and cannot carry the headline alone.",
-  "executionDeadEnds": "Stratifying on Steam's storefront genres would have been a weak correction — they are three broad buckets, and ELDEN RING is simply Action, RPG. SteamSpy's user tags carry the resolution the question needs, but not raw: Dota 2's highest-voted tag is Free to Play at 60,040 votes, three times the next. Ranking by votes would have sorted every free game into a Free to Play stratum and left no cell containing both models — the strata would have restated the variable under test. Business-model tags are therefore excluded by name. Because most high-voted tags are descriptors rather than genres (Difficult, Dark Fantasy, Third Person), genres come from an explicit vocabulary rather than whatever ranks highest. A first pass still put 65% of the cohort into an umbrella bucket like Action or Casual; making specific tags beat umbrellas regardless of votes brought that to 18%.",
-  "methodology": "Ownership is reported by SteamSpy as a band, never a number, so it is carried as an interval throughout and every owner-dependent result is recomputed at the lower bound, the midpoint and the upper bound. Inclusion: released 2015 or later, owner-interval midpoint above 20,000 — a threshold aligned to SteamSpy's own bottom band rather than chosen freehand, which excludes games that flopped and tilts the sample toward titles that found an audience. Comparisons are rank-based (Mann-Whitney U with tie and continuity corrections, Cliff's delta as the effect size) because playtime is severely skewed. The effect size leads and the p-value follows, since at this sample size significance says little about magnitude. Within-genre results are pooled by pairwise weight across only those cells holding at least eight games of each model.",
-  "keyResults": "Free-to-play median playtime 124 minutes against 530 for paid, across 1,198 free and 1,599 paid games with a usable reviewer sample. Cliff's delta -0.457 naive, -0.482 after genre adjustment across 58 genres. The three owner bounds agree to within 0.001, so the interval assumption — the most visible judgement call in the study — does not drive the conclusion.",
-  "businessInterpretation": "Going free does not buy engagement on Steam, and the genre mix does not explain the shortfall. The two genres where free-to-play holds its own, Clicker and Idler, are designed around long low-intensity sessions, which suggests the model works where the game's loop already suits it rather than as a general lever. Price level is the stronger predictor: engagement climbs monotonically with price, more than tenfold from the cheapest band to the most expensive. The honest causal reading is that expensive games are not engaging because they are expensive — price is standing in for production budget, scope and buyer intent, none of which this data measures.",
-  "recommendations": "Treat a free-to-play launch as a distribution decision rather than an engagement one: it buys reach, and this data gives no reason to expect it to buy time played. If engagement is the goal, the genre's session structure matters more than the price tag — the model earns its place in loops built for long passive play. Before converting an existing paid title, note that this study compares games as they are priced today, not as they launched, so it cannot speak to what conversion does to a specific title. That needs a before-and-after on the same game.",
+  "problemSpace": "A studio choosing a launch pricing model, or a publisher weighing whether to take an ageing paid title free, wants to know what the model buys in engagement. The trap is that the obvious analysis answers a different question: free games have more owners, which is a tautology, because free things get downloaded. The question worth asking is whether players who take a free game stay in it as long as players who paid, and whether any difference holds once you stop comparing a free MOBA against a paid visual novel.",
+  "stakeholders": [
+    { "role": "Studio leadership", "description": "Choosing a launch pricing model, where the engagement consequence is usually assumed rather than measured." },
+    { "role": "Publishers", "description": "Weighing a free-to-play conversion for an existing paid title." },
+    { "role": "Live-ops and product", "description": "Forecasting engagement from price, and sizing what a free launch will and will not deliver." }
+  ],
+  "inputs": {
+    "description": "SteamSpy's full catalogue, enriched app by app from the Steam storefront for AUD price, genres, release date and the free-to-play flag. Playtime comes from Steam review payloads — real per-player figures, sampled at up to 200 reviewers per game. Every response is cached to disk untransformed, so a re-run returns identical data and an interrupted pull resumes rather than restarting.",
+    "stats": [
+      { "value": "27,021", "label": "apps in the catalogue pull" },
+      { "value": "26,017", "label": "apps enriched (52,034 requests, 7 failures)" },
+      { "value": "20,761", "label": "games in the comparison set" },
+      { "value": "3,497", "label": "games sampled for playtime" }
+    ],
+    "dataQuality": {
+      "label": "What the data will not tell you",
+      "items": [
+        "Ownership is a band, never a number — SteamSpy reports \"1,000,000 .. 2,000,000\" because Steam's privacy changes ended exact counts. It is carried as an interval throughout, and every owner-dependent result is recomputed at the lower bound, the midpoint and the upper bound.",
+        "5,256 apps were excluded and counted rather than quietly dropped: 3,052 released before 2015, 1,790 with no usable price, 261 that are software rather than games, and 153 with no parseable release date.",
+        "Both sources report current state, not launch state, so a paid game that went free years ago reads as free today.",
+        "The owner floor excludes games that flopped, which tilts the sample toward titles that found an audience."
+      ]
+    },
+    "closingNote": {
+      "label": "Reproducibility",
+      "items": [
+        "105 tests cover the pull, the cohort construction, the interval handling and the statistics — including the rank test, which is implemented directly rather than imported."
+      ]
+    }
+  },
+  "categoryLeader": {
+    "label": "Where engagement actually concentrates",
+    "heading": "Paid games at 60 AUD and above",
+    "stats": [
+      { "value": "2,484", "label": "median minutes played" },
+      { "value": "10x", "label": "the under-10 AUD band" },
+      { "value": "42", "label": "games in the band" }
+    ],
+    "description": "Median playtime rises monotonically across every price band — 233 minutes under 10 AUD, 630 in 10-30, 1,420 in 30-60, and 2,484 above 60. This is the strongest signal in the study, and it is not a claim that price causes engagement: price is standing in for production budget, scope and buyer intent, none of which this data measures."
+  },
+  "priceBehaviour": null,
+  "surprisingPatterns": {
+    "label": "Where free-to-play does win",
+    "items": [
+      "Free-to-play wins in exactly one genre — **Clicker**, 530 minutes against 218 — and ties in **Idler** (2,723 against 1,764). Both are built around long, low-intensity sessions, and in both the free model is native rather than a discount.",
+      "**MMORPG is the informative loss.** It is the genre where a free model should have its strongest case — persistent worlds, long tails, monetisation designed in — and paid titles still hold more than twice the playtime (2,810 against 1,216).",
+      "The losses elsewhere are heavy and consistent: Racing -0.827, Visual Novel -0.726, Point & Click -0.600."
+    ]
+  },
+  "hypothesisVsReality": {
+    "label": "What I expected, and what happened",
+    "items": [
+      "**Expected:** that the naive gap was largely a genre artefact — free-to-play concentrates in genres that play short, and correcting for genre would collapse the difference.",
+      "**Found:** the genre-adjusted effect size (-0.482) is slightly *larger* than the naive one (-0.457). Whatever produces the gap, it is not the mix of genres that go free.",
+      "That is the more useful result. A confirmation would have explained the gap away; this says the gap is real inside genres too."
+    ]
+  },
+  "deadEnds": {
+    "label": "The headline metric died mid-project",
+    "items": [
+      "The plan was to use SteamSpy's median playtime. It still serves the field — as zeroes. All four playtime fields return zero for every one of the 1,000 apps on the first catalogue page, and for both apps I spot-checked by hand.",
+      "The plain reading is that Steam's profile-privacy changes removed the sample those figures were derived from, leaving the old schema in place. Every playtime option the plan offered died at once.",
+      "Rebuilt on per-player playtime from Steam review payloads, which are populated. That buys real data at the cost of a smaller sample and a second selection bias — reviewers play more than owners do — both stated rather than absorbed."
+    ]
+  },
+  "methodology": [
+    { "heading": "Rank-based comparison", "description": "Playtime is severely skewed — a handful of thousand-hour players drag any mean off the map — so every comparison uses Mann-Whitney U with tie and continuity corrections, and Cliff's delta as the effect size. Delta reads directly: -1 means every paid game outplays every free one, 0 means no separation." },
+    { "heading": "Effect size leads, p-value follows", "description": "At this sample size almost anything is statistically significant, so significance says little about magnitude. An effect size shown next to a visible cell count claims less and means more." },
+    { "heading": "Genre from user tags, not store genres", "description": "Steam's storefront genres are three broad buckets — ELDEN RING is simply \"Action, RPG\". The confound this study corrects for lives at the level of MOBA against Souls-like, which only the tags capture." },
+    { "heading": "Stratified pooling", "description": "Within-genre results are pooled by pairwise weight, and only across cells holding at least eight games of each model. A stratified estimate built from cells too thin to read individually would launder the same noise." },
+    { "heading": "Interval-aware ownership", "description": "Inclusion is released 2015 or later with an owner-interval midpoint above 20,000 — a threshold aligned to SteamSpy's own bottom band rather than chosen freehand. Every owner-dependent result is recomputed at all three bounds." }
+  ],
+  "secondaryModel": {
+    "label": "A second metric, as a cross-check",
+    "items": [
+      "Concurrent players per owner, computed across the whole 20,761-game cohort rather than the playtime sample. It agrees on direction (naive -0.109, genre-adjusted -0.092) and independently reproduces the price-band gradient.",
+      "It cannot carry the headline, and the reason is worth stating: 54% of the cohort has a concurrent-player count of exactly zero, so a rank test on it is mostly ties. It was also rejected as the headline metric on a measurement argument — it penalises single-player paid games structurally, which sits too close to the variable under test."
+    ]
+  },
+  "executionDeadEnds": {
+    "label": "Two approaches tried and rejected",
+    "items": [
+      "**Ranking genre tags by vote count.** Dota 2's highest-voted tag is \"Free to Play\" at 60,040 votes, three times the next. That rule would have sorted every free game into a \"Free to Play\" stratum and left no cell containing both models — the strata would have restated the variable under test. Business-model tags are now excluded by name.",
+      "**Using the highest-voted eligible tag.** Steam's umbrella tags outrank the informative ones on most games, so this put 65% of the cohort into buckets like \"Action\" or \"Casual\" — no better than the store genres the tags were meant to replace. Specific tags now beat umbrellas regardless of votes, which brought that to 18%."
+    ]
+  },
+  "keyResults": {
+    "label": "What the numbers say",
+    "items": [
+      "**Free-to-play median playtime 124 minutes against 530 for paid**, across 1,198 free and 1,599 paid games with a usable reviewer sample.",
+      "Cliff's delta **-0.457 naive, -0.482 after genre adjustment** across 58 genres. The correction moved the result 0.025 further from zero, not toward it.",
+      "The three owner bounds agree to within 0.001. The interval assumption is the most visible judgement call in the study, and it does not drive the conclusion — because the comparisons are rank-based, widening or narrowing the bands barely reorders anything.",
+      "Among paid games, median playtime rises monotonically with price: 233 minutes under 10 AUD, 630 in 10-30, 1,420 in 30-60, 2,484 above 60."
+    ]
+  },
+  "businessInterpretation": "Going free does not buy engagement on Steam, and the genre mix does not explain the shortfall. The two genres where free-to-play holds its own, Clicker and Idler, are designed around long low-intensity sessions, which suggests the model works where the game's loop already suits it rather than as a general lever. Price level is the stronger predictor, climbing more than tenfold from the cheapest band to the most expensive — though the honest causal reading is that expensive games are not engaging because they are expensive. Price is standing in for production budget, scope and buyer intent, none of which this data measures.",
+  "recommendations": {
+    "items": [
+      { "tag": "Studio / Launch", "text": "Treat a free-to-play launch as a distribution decision, not an engagement one. It buys reach, and this data gives no reason to expect it to buy time played." },
+      { "tag": "Product", "text": "Check the genre's session structure before assuming the model transfers. Free-to-play held its own only in loops built for long passive play — Clicker and Idler — and lost everywhere else, including MMORPG." },
+      { "tag": "Commercial", "text": "Pair this with revenue per player before making a pricing call. Engagement is half the question, and the half this data cannot answer: a game played half as long may still earn more per player." }
+    ],
+    "limitations": [
+      "A median over reviewers is not a median over owners. People who write reviews have played more than people who don't, so every playtime figure here is biased upward. It stays comparable across games, which is what the question needs, but it is not an estimate of what a typical owner played.",
+      "Attrition is uneven. 700 of the 3,497 sampled games had fewer than 30 reviewers and were dropped rather than given a median on thin evidence — 22.5% of paid games against 16.5% of free ones. The paid sample therefore lost more of its small titles, and small titles plausibly play shorter, so the gap is more likely overstated than understated.",
+      "Current state is not launch state, so this cannot say what a conversion does to a specific title. That needs a before-and-after on the same game.",
+      "There is no revenue data here at all. Engagement is not monetisation."
+    ],
+    "nextSteps": [
+      "Pair the engagement figures with revenue per player to answer the pricing question properly.",
+      "Run a before-and-after on titles that actually converted from paid to free, which is the only way to isolate the model from the game.",
+      "Extend the genre vocabulary using the coverage audit's ranked list of unclassified tags, and re-run to see whether any within-genre result moves."
+    ]
+  },
   "visuals": [
     {
       "id": "naive-vs-adjusted",
@@ -57,6 +157,7 @@
       "svg": "<svg viewBox=\"0 0 560 240\" role=\"img\" aria-label=\"Median playtime by AUD price band: under 10 is 233 minutes, 10 to 30 is 630, 30 to 60 is 1420, 60 plus is 2484.\" xmlns=\"http://www.w3.org/2000/svg\"><g font-size=\"12\" fill=\"currentColor\"><rect x=\"70\" y=\"172\" width=\"90\" height=\"18\" rx=\"3\" fill=\"currentColor\" fill-opacity=\"0.3\"/><text x=\"60\" y=\"186\" text-anchor=\"end\">under 10</text><text x=\"170\" y=\"186\" font-weight=\"600\">233 min</text><rect x=\"70\" y=\"132\" width=\"143\" height=\"18\" rx=\"3\" fill=\"currentColor\" fill-opacity=\"0.45\"/><text x=\"60\" y=\"146\" text-anchor=\"end\">10-30</text><text x=\"223\" y=\"146\" font-weight=\"600\">630 min</text><rect x=\"70\" y=\"92\" width=\"250\" height=\"18\" rx=\"3\" fill=\"currentColor\" fill-opacity=\"0.6\"/><text x=\"60\" y=\"106\" text-anchor=\"end\">30-60</text><text x=\"330\" y=\"106\" font-weight=\"600\">1,420 min</text><rect x=\"70\" y=\"52\" width=\"400\" height=\"18\" rx=\"3\" fill=\"currentColor\" fill-opacity=\"0.8\"/><text x=\"60\" y=\"66\" text-anchor=\"end\">60+</text><text x=\"480\" y=\"66\" font-weight=\"600\">2,484 min</text><text x=\"70\" y=\"218\" fill-opacity=\"0.7\">n = 549 / 807 / 201 / 42 games per band</text></g></svg>"
     }
   ],
+  "shapDrivers": null,
   "links": null,
   "image": null
 }
