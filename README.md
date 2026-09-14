@@ -30,7 +30,7 @@ plan: `spec-steam-pricing-engagement.md`.
 | Written report (4pp) | Done — `deliverables/` |
 | Stakeholder deck (9 slides) | Done — `deliverables/` |
 | Website case study | Written — `deliverables/case-study-entry.json` |
-| Dashboard | Not started |
+| Dashboard | Done — `dashboard/index.html`, self-contained |
 
 ## Decisions so far
 
@@ -272,8 +272,19 @@ play more than owners do.
   pages, built by `app/build_report.js`.
 - `deliverables/f2p-vs-paid-engagement-deck.pptx` — nine slides for a
   non-technical audience, built by `app/build_deck.js`.
-- `deliverables/case-study-entry.json` — the portfolio case study, ready to drop
-  into the site's `data/projects.json` as one array element.
+- `deliverables/case-study-entry.json` — the portfolio case study, now live on
+  the site.
+- `dashboard/index.html` — the interactive dashboard. Data is embedded rather
+  than fetched, so the single file works opened straight off disk as well as
+  served; this repo has no Pages site, and a dashboard nobody can open is not a
+  deliverable. Rebuild with `python -m src.export_dashboard && python
+  app/build_dashboard.py`.
+
+The dashboard answers the spec's request for an owner-range uncertainty ribbon by
+not drawing one. The bounds move every result by about 0.001, so a ribbon would
+be a flat line pretending to be information. Instead the bound is a control: flip
+it and watch nothing happen, which is the finding. The uncertainty that does
+matter — uneven reviewer attrition — is stated on the page.
 
 Both documents were rendered and read before committing, not just generated. That
 caught a genuinely misleading chart: the naive and genre-adjusted effect sizes

@@ -1,0 +1,4368 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>F2P vs Paid — Pricing and Engagement on Steam</title>
+<style>
+  :root {
+    --bg: #161826; --panel: #1E2133; --line: #2C3047;
+    --ink: #E9E9ED; --muted: #9AA3B8; --accent: #A78BFA;
+    --paid: #A78BFA; --free: #5B6480;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.6 -apple-system, "Segoe UI", system-ui, sans-serif; }
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 40px 22px 80px; }
+  .eyebrow { color: var(--accent); letter-spacing: .12em; text-transform: uppercase;
+             font-size: 12px; font-weight: 600; }
+  h1 { font-size: 30px; margin: 6px 0 8px; line-height: 1.2; }
+  .lede { color: var(--muted); max-width: 70ch; margin: 0 0 26px; }
+  h2 { font-size: 19px; margin: 36px 0 6px; }
+  .note { color: var(--muted); font-size: 13.5px; max-width: 78ch; }
+  .panel { background: var(--panel); border: 1px solid var(--line);
+           border-radius: 10px; padding: 20px 22px; margin-top: 14px; }
+  .controls { display: flex; gap: 22px; flex-wrap: wrap; align-items: center; margin-top: 18px; }
+  .control-label { font-size: 12px; color: var(--muted); text-transform: uppercase;
+                   letter-spacing: .08em; margin-right: 8px; }
+  button { background: transparent; border: 1px solid var(--line); color: var(--muted);
+           padding: 6px 13px; border-radius: 999px; cursor: pointer; font: inherit; font-size: 13.5px; }
+  button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #17182A; font-weight: 600; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-top: 14px; }
+  .stat .v { font-size: 26px; font-weight: 700; }
+  .stat .l { color: var(--muted); font-size: 13px; }
+  .hero { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 680px) { .hero { grid-template-columns: 1fr; } }
+  .hero .v { font-size: 40px; font-weight: 700; }
+  .hero .sub { color: var(--muted); font-size: 13.5px; }
+  .moved { margin-top: 14px; font-weight: 600; }
+  table { border-collapse: collapse; width: 100%; margin-top: 10px; font-size: 14px; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; font-size: 12.5px; text-transform: uppercase;
+       letter-spacing: .05em; cursor: pointer; user-select: none; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .bar { position: relative; height: 15px; background: #252940; border-radius: 3px; min-width: 120px; }
+  .bar i { position: absolute; top: 0; bottom: 0; border-radius: 3px; }
+  .bar .zero { position: absolute; top: -2px; bottom: -2px; width: 1px; background: var(--muted); opacity: .55; }
+  .scroll { overflow-x: auto; }
+  footer { margin-top: 44px; color: var(--muted); font-size: 13px; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">Case study dashboard</div>
+  <h1>F2P vs Paid: pricing and engagement on Steam</h1>
+  <p class="lede">Does going free-to-play actually buy engagement? “Free games have more owners” is a
+  tautology — free things get downloaded. This compares how long players actually stay, and whether
+  any gap survives comparing like genre with like.</p>
+
+  <div class="controls">
+    <span><span class="control-label">Metric</span>
+      <button data-metric="playtime" aria-pressed="true">Median playtime</button>
+      <button data-metric="ccu_per_owner" aria-pressed="false">CCU per owner</button>
+    </span>
+    <span><span class="control-label">Owner bound</span>
+      <button data-bound="lower" aria-pressed="false">Lower</button>
+      <button data-bound="midpoint" aria-pressed="true">Midpoint</button>
+      <button data-bound="upper" aria-pressed="false">Upper</button>
+    </span>
+  </div>
+
+  <h2>The correction that was meant to explain the gap</h2>
+  <p class="note">Cliff's delta. Negative means paid games are played longer. −1 would mean every paid
+  game outplays every free one; 0 means no separation.</p>
+  <div class="panel hero">
+    <div><div class="v" id="naive" style="color:var(--free)"></div>
+      <div class="sub">naive — all games pooled</div></div>
+    <div><div class="v" id="adjusted" style="color:var(--paid)"></div>
+      <div class="sub" id="adjusted-sub">genre-adjusted</div></div>
+    <div style="grid-column:1/-1" class="moved" id="moved"></div>
+  </div>
+
+  <div class="stats" id="stats"></div>
+  <p class="note" id="ties" style="margin-top:12px"></p>
+
+  <h2>Within genre</h2>
+  <p class="note">Only genres holding at least eight games of each pricing model. Click a column to sort.</p>
+  <div class="panel scroll">
+    <table id="genres">
+      <thead><tr>
+        <th data-sort="label">Genre</th>
+        <th class="num" data-sort="nF2p">Free</th>
+        <th class="num" data-sort="nPaid">Paid</th>
+        <th class="num" data-sort="medianF2p">Median free</th>
+        <th class="num" data-sort="medianPaid">Median paid</th>
+        <th data-sort="delta">Delta (− = paid higher)</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <h2>By price band</h2>
+  <p class="note">Paid games only. Price is standing in for production budget, scope and buyer intent —
+  none of which this data measures, so this is not a claim that price causes engagement.</p>
+  <div class="panel scroll"><table id="bands">
+    <thead><tr><th>Band (AUD)</th><th class="num">Games</th><th class="num">Median</th><th>&nbsp;</th></tr></thead>
+    <tbody></tbody>
+  </table></div>
+
+  <h2>What would weaken this</h2>
+  <div class="panel">
+    <p class="note" id="uncertainty"></p>
+    <p class="note" style="margin-top:12px"><strong>The owner-range uncertainty turned out not to
+    matter.</strong> Ownership is reported as a band, never a number, so every result is recomputed at
+    the lower bound, the midpoint and the upper bound — switch the control above and watch. The figures
+    move by about 0.001, because the comparisons are rank-based and widening the bands barely reorders
+    anything. The plan called for an uncertainty ribbon here; it would have been a flat line pretending
+    to be information, so the real uncertainty is shown instead.</p>
+  </div>
+
+  <footer>
+    Generated <span id="generated"></span> ·
+    <a href="https://github.com/EileenIp/steam-pricing-engagement">source and method</a> ·
+    Playtime is a median over reviewers, not owners — reviewers play more.<span id="exact"></span>
+  </footer>
+</div>
+
+<script id="payload" type="application/json">{
+ "generated": "2026-09-15",
+ "cohort": {
+  "games": 20761,
+  "f2p": 3062,
+  "paid": 17699,
+  "sampled": 3497,
+  "usable": 2797
+ },
+ "attrition": {
+  "f2p": {
+   "usable": 1198,
+   "dropped": 236,
+   "rate": 0.16457461645746166
+  },
+  "paid": {
+   "usable": 1599,
+   "dropped": 464,
+   "rate": 0.22491517207949588
+  }
+ },
+ "metrics": {
+  "playtime": {
+   "lower": {
+    "naive": {
+     "label": "ALL GAMES (naive)",
+     "nF2p": 1198,
+     "nPaid": 1599,
+     "medianF2p": 124.5,
+     "medianPaid": 529.5,
+     "delta": -0.4573246425927724,
+     "p": 2.0220324808611732e-95,
+     "tiedAtZero": 0.0,
+     "usable": true
+    },
+    "adjustedDelta": -0.482341679681596,
+    "usableGenres": 58,
+    "byGenre": [
+     {
+      "label": "Point & Click",
+      "nF2p": 24,
+      "nPaid": 23,
+      "medianF2p": 83.5,
+      "medianPaid": 272.0,
+      "delta": -0.5996376811594203,
+      "p": 0.00044535714683169634,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Clicker",
+      "nF2p": 25,
+      "nPaid": 22,
+      "medianF2p": 530,
+      "medianPaid": 218.25,
+      "delta": 0.3527272727272728,
+      "p": 0.03964902300854827,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Idler",
+      "nF2p": 25,
+      "nPaid": 22,
+      "medianF2p": 2723.0,
+      "medianPaid": 1763.5,
+      "delta": 0.0072727272727273196,
+      "p": 0.9744879147351644,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Simulation",
+      "nF2p": 25,
+      "nPaid": 21,
+      "medianF2p": 98.0,
+      "medianPaid": 682,
+      "delta": -0.45333333333333337,
+      "p": 0.008966541949717861,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Visual Novel",
+      "nF2p": 25,
+      "nPaid": 21,
+      "medianF2p": 83,
+      "medianPaid": 587.0,
+      "delta": -0.7257142857142858,
+      "p": 2.789352367360645e-05,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Adventure",
+      "nF2p": 24,
+      "nPaid": 22,
+      "medianF2p": 45.5,
+      "medianPaid": 207.5,
+      "delta": -0.5189393939393939,
+      "p": 0.002684553364510294,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Psychological Horror",
+      "nF2p": 25,
+      "nPaid": 21,
+      "medianF2p": 72.5,
+      "medianPaid": 233.5,
+      "delta": -0.4990476190476191,
+      "p": 0.004002458593714595,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Hack and Slash",
+      "nF2p": 22,
+      "nPaid": 24,
+      "medianF2p": 49.5,
+      "medianPaid": 474.0,
+      "delta": -0.5151515151515151,
+      "p": 0.002885858214969161,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Action",
+      "nF2p": 22,
+      "nPaid": 22,
+      "medianF2p": 57.5,
+      "medianPaid": 181.5,
+      "delta": -0.45867768595041325,
+      "p": 0.009489187084630925,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "RPG",
+      "nF2p": 24,
+      "nPaid": 20,
+      "medianF2p": 231.25,
+      "medianPaid": 317.25,
+      "delta": -0.32499999999999996,
+      "p": 0.06774601384068937,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Racing",
+      "nF2p": 24,
+      "nPaid": 19,
+      "medianF2p": 26.5,
+      "medianPaid": 189,
+      "delta": -0.8267543859649122,
+      "p": 4.261340912161015e-06,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "MMORPG",
+      "nF2p": 21,
+      "nPaid": 21,
+      "medianF2p": 1216,
+      "medianPaid": 2809.5,
+      "delta": -0.39229024943310653,
+      "p": 0.030510915138169135,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Card Battler",
+      "nF2p": 20,
+      "nPaid": 22,
+      "medianF2p": 489.5,
+      "medianPaid": 949.0,
+      "delta": -0.32272727272727275,
+      "p": 0.07580451183093122,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Puzzle",
+      "nF2p": 21,
+      "nPaid": 21,
+      "medianF2p": 88.5,
+      "medianPaid": 440.0,
+      "delta": -0.6598639455782314,
+      "p": 0.000264719504768907,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "FPS",
+      "nF2p": 23,
+      "nPaid": 18,
+      "medianF2p": 37.0,
+      "medianPaid": 493.25,
+      "delta": -0.6280193236714976,
+      "p": 0.0006667485068920764,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "RTS",
+      "nF2p": 20,
+      "nPaid": 21,
+      "medianF2p": 251.5,
+      "medianPaid": 1044.5,
+      "delta": -0.5476190476190477,
+      "p": 0.002822904930652645,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Casual",
+      "nF2p": 20,
+      "nPaid": 21,
+      "medianF2p": 55.25,
+      "medianPaid": 161.0,
+      "delta": -0.33571428571428574,
+      "p": 0.06785320516750745,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "City Builder",
+      "nF2p": 21,
+      "nPaid": 19,
+      "medianF2p": 244.5,
+      "medianPaid": 1259.5,
+      "delta": -0.6591478696741855,
+      "p": 0.0003881690483723231,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Open World Survival Craft",
+      "nF2p": 15,
+      "nPaid": 25,
+      "medianF2p": 396.0,
+      "medianPaid": 1493.5,
+      "delta": -0.5093333333333334,
+      "p": 0.007953554747067548,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Sports",
+      "nF2p": 17,
+      "nPaid": 23,
+      "medianF2p": 60,
+      "medianPaid": 556.5,
+      "delta": -0.6265984654731458,
+      "p": 0.0008442153688386253,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Dating Sim",
+      "nF2p": 15,
+      "nPaid": 25,
+      "medianF2p": 241.0,
+      "medianPaid": 370.5,
+      "delta": -0.1253333333333333,
+      "p": 0.5204927613506407,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Strategy",
+      "nF2p": 23,
+      "nPaid": 16,
+      "medianF2p": 132.5,
+      "medianPaid": 532.75,
+      "delta": -0.375,
+      "p": 0.05048720758722591,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Tower Defense",
+      "nF2p": 19,
+      "nPaid": 20,
+      "medianF2p": 194.0,
+      "medianPaid": 722.0,
+      "delta": -0.631578947368421,
+      "p": 0.0007860519755948526,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "JRPG",
+      "nF2p": 20,
+      "nPaid": 19,
+      "medianF2p": 137.0,
+      "medianPaid": 922.5,
+      "delta": -0.6263157894736842,
+      "p": 0.0008698252117808269,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Hidden Object",
+      "nF2p": 21,
+      "nPaid": 18,
+      "medianF2p": 83.0,
+      "medianPaid": 291.75,
+      "delta": -0.5026455026455027,
+      "p": 0.007762345606556909,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Battle Royale",
+      "nF2p": 21,
+      "nPaid": 18,
+      "medianF2p": 459.0,
+      "medianPaid": 270.0,
+      "delta": 0.12433862433862441,
+      "p": 0.516995047366337,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Third-Person Shooter",
+      "nF2p": 22,
+      "nPaid": 16,
+      "medianF2p": 115.5,
+      "medianPaid": 475.5,
+      "delta": -0.5056818181818181,
+      "p": 0.008882144147300963,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Beat 'em up",
+      "nF2p": 17,
+      "nPaid": 21,
+      "medianF2p": 183.5,
+      "medianPaid": 380.0,
+      "delta": -0.5518207282913166,
+      "p": 0.004013877358236883,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Walking Simulator",
+      "nF2p": 22,
+      "nPaid": 16,
+      "medianF2p": 50.0,
+      "medianPaid": 201.5,
+      "delta": -0.8039772727272727,
+      "p": 3.0596518176551495e-05,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Life Sim",
+      "nF2p": 15,
+      "nPaid": 23,
+      "medianF2p": 61.0,
+      "medianPaid": 800.5,
+      "delta": -0.5536231884057972,
+      "p": 0.004552746214903909,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Automobile Sim",
+      "nF2p": 13,
+      "nPaid": 24,
+      "medianF2p": 188.5,
+      "medianPaid": 825.5,
+      "delta": -0.7435897435897436,
+      "p": 0.00023827410937832605,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Survival Horror",
+      "nF2p": 19,
+      "nPaid": 18,
+      "medianF2p": 60.5,
+      "medianPaid": 239.25,
+      "delta": -0.7076023391812866,
+      "p": 0.00025020471121591924,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Interactive Fiction",
+      "nF2p": 19,
+      "nPaid": 18,
+      "medianF2p": 48,
+      "medianPaid": 342.25,
+      "delta": -0.7017543859649122,
+      "p": 0.00028207439710180716,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Bullet Hell",
+      "nF2p": 15,
+      "nPaid": 20,
+      "medianF2p": 84,
+      "medianPaid": 347.0,
+      "delta": -0.6133333333333333,
+      "p": 0.002288413662045401,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Choose Your Own Adventure",
+      "nF2p": 17,
+      "nPaid": 18,
+      "medianF2p": 246.5,
+      "medianPaid": 434.25,
+      "delta": -0.21568627450980393,
+      "p": 0.2834237661652213,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Turn-Based Tactics",
+      "nF2p": 16,
+      "nPaid": 19,
+      "medianF2p": 105.75,
+      "medianPaid": 1046.0,
+      "delta": -0.513157894736842,
+      "p": 0.010279538379799787,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Horror",
+      "nF2p": 18,
+      "nPaid": 17,
+      "medianF2p": 24.0,
+      "medianPaid": 167,
+      "delta": -0.7712418300653595,
+      "p": 0.00010399847790057648,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Dungeon Crawler",
+      "nF2p": 11,
+      "nPaid": 23,
+      "medianF2p": 248.5,
+      "medianPaid": 913.0,
+      "delta": -0.5375494071146245,
+      "p": 0.012953706688763458,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Shoot 'Em Up",
+      "nF2p": 17,
+      "nPaid": 17,
+      "medianF2p": 82.0,
+      "medianPaid": 249,
+      "delta": -0.6747404844290658,
+      "p": 0.0008347042748786483,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "3D Platformer",
+      "nF2p": 20,
+      "nPaid": 14,
+      "medianF2p": 68.75,
+      "medianPaid": 237.0,
+      "delta": -0.5285714285714286,
+      "p": 0.01011233392133347,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Turn-Based Strategy",
+      "nF2p": 15,
+      "nPaid": 18,
+      "medianF2p": 158.0,
+      "medianPaid": 1154.25,
+      "delta": -0.7111111111111111,
+      "p": 0.0005547800517291274,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Rhythm",
+      "nF2p": 11,
+      "nPaid": 22,
+      "medianF2p": 99.0,
+      "medianPaid": 342.25,
+      "delta": -0.4132231404958677,
+      "p": 0.05870740843120503,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Real Time Tactics",
+      "nF2p": 12,
+      "nPaid": 21,
+      "medianF2p": 289.5,
+      "medianPaid": 956.5,
+      "delta": -0.4444444444444444,
+      "p": 0.03778228564629276,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Metroidvania",
+      "nF2p": 12,
+      "nPaid": 20,
+      "medianF2p": 198.0,
+      "medianPaid": 602.75,
+      "delta": -0.5583333333333333,
+      "p": 0.00963924310488473,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Action RPG",
+      "nF2p": 17,
+      "nPaid": 15,
+      "medianF2p": 166,
+      "medianPaid": 1137.0,
+      "delta": -0.6470588235294117,
+      "p": 0.0019579005008961226,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Deckbuilding",
+      "nF2p": 12,
+      "nPaid": 20,
+      "medianF2p": 818.75,
+      "medianPaid": 1307.25,
+      "delta": -0.17500000000000004,
+      "p": 0.424892880101534,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Action-Adventure",
+      "nF2p": 14,
+      "nPaid": 17,
+      "medianF2p": 50.5,
+      "medianPaid": 803.5,
+      "delta": -0.865546218487395,
+      "p": 4.7285005850185244e-05,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Wargame",
+      "nF2p": 15,
+      "nPaid": 16,
+      "medianF2p": 661.5,
+      "medianPaid": 1690.5,
+      "delta": -0.3583333333333333,
+      "p": 0.09296509721535885,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "2D Platformer",
+      "nF2p": 16,
+      "nPaid": 15,
+      "medianF2p": 113.25,
+      "medianPaid": 273.0,
+      "delta": -0.625,
+      "p": 0.003230892642687009,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Arena Shooter",
+      "nF2p": 17,
+      "nPaid": 13,
+      "medianF2p": 64.0,
+      "medianPaid": 442,
+      "delta": -0.5565610859728507,
+      "p": 0.010672565959149897,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Precision Platformer",
+      "nF2p": 11,
+      "nPaid": 18,
+      "medianF2p": 188.5,
+      "medianPaid": 210.25,
+      "delta": -0.2727272727272727,
+      "p": 0.2336196589901771,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Twin Stick Shooter",
+      "nF2p": 9,
+      "nPaid": 20,
+      "medianF2p": 56.0,
+      "medianPaid": 380.75,
+      "delta": -0.5222222222222221,
+      "p": 0.02837726673798746,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Space Sim",
+      "nF2p": 13,
+      "nPaid": 14,
+      "medianF2p": 448.5,
+      "medianPaid": 1061.0,
+      "delta": -0.5824175824175823,
+      "p": 0.010845950917060454,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Tactical RPG",
+      "nF2p": 12,
+      "nPaid": 15,
+      "medianF2p": 198.0,
+      "medianPaid": 1019.0,
+      "delta": -0.37777777777777777,
+      "p": 0.10212608473203721,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Immersive Sim",
+      "nF2p": 9,
+      "nPaid": 18,
+      "medianF2p": 25.5,
+      "medianPaid": 698.0,
+      "delta": -0.8024691358024691,
+      "p": 0.0009081975515243086,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Football (Soccer)",
+      "nF2p": 12,
+      "nPaid": 15,
+      "medianF2p": 467.75,
+      "medianPaid": 448.5,
+      "delta": -0.2777777777777778,
+      "p": 0.23190048706459074,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Party-Based RPG",
+      "nF2p": 8,
+      "nPaid": 12,
+      "medianF2p": 1043.75,
+      "medianPaid": 792.25,
+      "delta": -0.15625,
+      "p": 0.5890143815020005,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Hero Shooter",
+      "nF2p": 9,
+      "nPaid": 10,
+      "medianF2p": 75.5,
+      "medianPaid": 357.0,
+      "delta": -0.06666666666666665,
+      "p": 0.8382564863858263,
+      "tiedAtZero": 0.0,
+      "usable": true
+     }
+    ],
+    "priceBands": [
+     {
+      "band": "0-10",
+      "n": 549,
+      "median": 233.0
+     },
+     {
+      "band": "10-30",
+      "n": 807,
+      "median": 630.0
+     },
+     {
+      "band": "30-60",
+      "n": 201,
+      "median": 1420.5
+     },
+     {
+      "band": "60+",
+      "n": 42,
+      "median": 2484.5
+     }
+    ]
+   },
+   "midpoint": {
+    "naive": {
+     "label": "ALL GAMES (naive)",
+     "nF2p": 1198,
+     "nPaid": 1599,
+     "medianF2p": 124.5,
+     "medianPaid": 529.5,
+     "delta": -0.4573246425927724,
+     "p": 2.0220324808611732e-95,
+     "tiedAtZero": 0.0,
+     "usable": true
+    },
+    "adjustedDelta": -0.482341679681596,
+    "usableGenres": 58,
+    "byGenre": [
+     {
+      "label": "Point & Click",
+      "nF2p": 24,
+      "nPaid": 23,
+      "medianF2p": 83.5,
+      "medianPaid": 272.0,
+      "delta": -0.5996376811594203,
+      "p": 0.00044535714683169634,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Clicker",
+      "nF2p": 25,
+      "nPaid": 22,
+      "medianF2p": 530,
+      "medianPaid": 218.25,
+      "delta": 0.3527272727272728,
+      "p": 0.03964902300854827,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Idler",
+      "nF2p": 25,
+      "nPaid": 22,
+      "medianF2p": 2723.0,
+      "medianPaid": 1763.5,
+      "delta": 0.0072727272727273196,
+      "p": 0.9744879147351644,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Simulation",
+      "nF2p": 25,
+      "nPaid": 21,
+      "medianF2p": 98.0,
+      "medianPaid": 682,
+      "delta": -0.45333333333333337,
+      "p": 0.008966541949717861,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Visual Novel",
+      "nF2p": 25,
+      "nPaid": 21,
+      "medianF2p": 83,
+      "medianPaid": 587.0,
+      "delta": -0.7257142857142858,
+      "p": 2.789352367360645e-05,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Adventure",
+      "nF2p": 24,
+      "nPaid": 22,
+      "medianF2p": 45.5,
+      "medianPaid": 207.5,
+      "delta": -0.5189393939393939,
+      "p": 0.002684553364510294,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Psychological Horror",
+      "nF2p": 25,
+      "nPaid": 21,
+      "medianF2p": 72.5,
+      "medianPaid": 233.5,
+      "delta": -0.4990476190476191,
+      "p": 0.004002458593714595,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Hack and Slash",
+      "nF2p": 22,
+      "nPaid": 24,
+      "medianF2p": 49.5,
+      "medianPaid": 474.0,
+      "delta": -0.5151515151515151,
+      "p": 0.002885858214969161,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Action",
+      "nF2p": 22,
+      "nPaid": 22,
+      "medianF2p": 57.5,
+      "medianPaid": 181.5,
+      "delta": -0.45867768595041325,
+      "p": 0.009489187084630925,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "RPG",
+      "nF2p": 24,
+      "nPaid": 20,
+      "medianF2p": 231.25,
+      "medianPaid": 317.25,
+      "delta": -0.32499999999999996,
+      "p": 0.06774601384068937,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Racing",
+      "nF2p": 24,
+      "nPaid": 19,
+      "medianF2p": 26.5,
+      "medianPaid": 189,
+      "delta": -0.8267543859649122,
+      "p": 4.261340912161015e-06,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "MMORPG",
+      "nF2p": 21,
+      "nPaid": 21,
+      "medianF2p": 1216,
+      "medianPaid": 2809.5,
+      "delta": -0.39229024943310653,
+      "p": 0.030510915138169135,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Card Battler",
+      "nF2p": 20,
+      "nPaid": 22,
+      "medianF2p": 489.5,
+      "medianPaid": 949.0,
+      "delta": -0.32272727272727275,
+      "p": 0.07580451183093122,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Puzzle",
+      "nF2p": 21,
+      "nPaid": 21,
+      "medianF2p": 88.5,
+      "medianPaid": 440.0,
+      "delta": -0.6598639455782314,
+      "p": 0.000264719504768907,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "FPS",
+      "nF2p": 23,
+      "nPaid": 18,
+      "medianF2p": 37.0,
+      "medianPaid": 493.25,
+      "delta": -0.6280193236714976,
+      "p": 0.0006667485068920764,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "RTS",
+      "nF2p": 20,
+      "nPaid": 21,
+      "medianF2p": 251.5,
+      "medianPaid": 1044.5,
+      "delta": -0.5476190476190477,
+      "p": 0.002822904930652645,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Casual",
+      "nF2p": 20,
+      "nPaid": 21,
+      "medianF2p": 55.25,
+      "medianPaid": 161.0,
+      "delta": -0.33571428571428574,
+      "p": 0.06785320516750745,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "City Builder",
+      "nF2p": 21,
+      "nPaid": 19,
+      "medianF2p": 244.5,
+      "medianPaid": 1259.5,
+      "delta": -0.6591478696741855,
+      "p": 0.0003881690483723231,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Open World Survival Craft",
+      "nF2p": 15,
+      "nPaid": 25,
+      "medianF2p": 396.0,
+      "medianPaid": 1493.5,
+      "delta": -0.5093333333333334,
+      "p": 0.007953554747067548,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Sports",
+      "nF2p": 17,
+      "nPaid": 23,
+      "medianF2p": 60,
+      "medianPaid": 556.5,
+      "delta": -0.6265984654731458,
+      "p": 0.0008442153688386253,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Dating Sim",
+      "nF2p": 15,
+      "nPaid": 25,
+      "medianF2p": 241.0,
+      "medianPaid": 370.5,
+      "delta": -0.1253333333333333,
+      "p": 0.5204927613506407,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Strategy",
+      "nF2p": 23,
+      "nPaid": 16,
+      "medianF2p": 132.5,
+      "medianPaid": 532.75,
+      "delta": -0.375,
+      "p": 0.05048720758722591,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Tower Defense",
+      "nF2p": 19,
+      "nPaid": 20,
+      "medianF2p": 194.0,
+      "medianPaid": 722.0,
+      "delta": -0.631578947368421,
+      "p": 0.0007860519755948526,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "JRPG",
+      "nF2p": 20,
+      "nPaid": 19,
+      "medianF2p": 137.0,
+      "medianPaid": 922.5,
+      "delta": -0.6263157894736842,
+      "p": 0.0008698252117808269,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Hidden Object",
+      "nF2p": 21,
+      "nPaid": 18,
+      "medianF2p": 83.0,
+      "medianPaid": 291.75,
+      "delta": -0.5026455026455027,
+      "p": 0.007762345606556909,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Battle Royale",
+      "nF2p": 21,
+      "nPaid": 18,
+      "medianF2p": 459.0,
+      "medianPaid": 270.0,
+      "delta": 0.12433862433862441,
+      "p": 0.516995047366337,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Third-Person Shooter",
+      "nF2p": 22,
+      "nPaid": 16,
+      "medianF2p": 115.5,
+      "medianPaid": 475.5,
+      "delta": -0.5056818181818181,
+      "p": 0.008882144147300963,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Beat 'em up",
+      "nF2p": 17,
+      "nPaid": 21,
+      "medianF2p": 183.5,
+      "medianPaid": 380.0,
+      "delta": -0.5518207282913166,
+      "p": 0.004013877358236883,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Walking Simulator",
+      "nF2p": 22,
+      "nPaid": 16,
+      "medianF2p": 50.0,
+      "medianPaid": 201.5,
+      "delta": -0.8039772727272727,
+      "p": 3.0596518176551495e-05,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Life Sim",
+      "nF2p": 15,
+      "nPaid": 23,
+      "medianF2p": 61.0,
+      "medianPaid": 800.5,
+      "delta": -0.5536231884057972,
+      "p": 0.004552746214903909,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Automobile Sim",
+      "nF2p": 13,
+      "nPaid": 24,
+      "medianF2p": 188.5,
+      "medianPaid": 825.5,
+      "delta": -0.7435897435897436,
+      "p": 0.00023827410937832605,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Survival Horror",
+      "nF2p": 19,
+      "nPaid": 18,
+      "medianF2p": 60.5,
+      "medianPaid": 239.25,
+      "delta": -0.7076023391812866,
+      "p": 0.00025020471121591924,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Interactive Fiction",
+      "nF2p": 19,
+      "nPaid": 18,
+      "medianF2p": 48,
+      "medianPaid": 342.25,
+      "delta": -0.7017543859649122,
+      "p": 0.00028207439710180716,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Bullet Hell",
+      "nF2p": 15,
+      "nPaid": 20,
+      "medianF2p": 84,
+      "medianPaid": 347.0,
+      "delta": -0.6133333333333333,
+      "p": 0.002288413662045401,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Choose Your Own Adventure",
+      "nF2p": 17,
+      "nPaid": 18,
+      "medianF2p": 246.5,
+      "medianPaid": 434.25,
+      "delta": -0.21568627450980393,
+      "p": 0.2834237661652213,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Turn-Based Tactics",
+      "nF2p": 16,
+      "nPaid": 19,
+      "medianF2p": 105.75,
+      "medianPaid": 1046.0,
+      "delta": -0.513157894736842,
+      "p": 0.010279538379799787,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Horror",
+      "nF2p": 18,
+      "nPaid": 17,
+      "medianF2p": 24.0,
+      "medianPaid": 167,
+      "delta": -0.7712418300653595,
+      "p": 0.00010399847790057648,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Dungeon Crawler",
+      "nF2p": 11,
+      "nPaid": 23,
+      "medianF2p": 248.5,
+      "medianPaid": 913.0,
+      "delta": -0.5375494071146245,
+      "p": 0.012953706688763458,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Shoot 'Em Up",
+      "nF2p": 17,
+      "nPaid": 17,
+      "medianF2p": 82.0,
+      "medianPaid": 249,
+      "delta": -0.6747404844290658,
+      "p": 0.0008347042748786483,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "3D Platformer",
+      "nF2p": 20,
+      "nPaid": 14,
+      "medianF2p": 68.75,
+      "medianPaid": 237.0,
+      "delta": -0.5285714285714286,
+      "p": 0.01011233392133347,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Turn-Based Strategy",
+      "nF2p": 15,
+      "nPaid": 18,
+      "medianF2p": 158.0,
+      "medianPaid": 1154.25,
+      "delta": -0.7111111111111111,
+      "p": 0.0005547800517291274,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Rhythm",
+      "nF2p": 11,
+      "nPaid": 22,
+      "medianF2p": 99.0,
+      "medianPaid": 342.25,
+      "delta": -0.4132231404958677,
+      "p": 0.05870740843120503,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Real Time Tactics",
+      "nF2p": 12,
+      "nPaid": 21,
+      "medianF2p": 289.5,
+      "medianPaid": 956.5,
+      "delta": -0.4444444444444444,
+      "p": 0.03778228564629276,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Metroidvania",
+      "nF2p": 12,
+      "nPaid": 20,
+      "medianF2p": 198.0,
+      "medianPaid": 602.75,
+      "delta": -0.5583333333333333,
+      "p": 0.00963924310488473,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Action RPG",
+      "nF2p": 17,
+      "nPaid": 15,
+      "medianF2p": 166,
+      "medianPaid": 1137.0,
+      "delta": -0.6470588235294117,
+      "p": 0.0019579005008961226,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Deckbuilding",
+      "nF2p": 12,
+      "nPaid": 20,
+      "medianF2p": 818.75,
+      "medianPaid": 1307.25,
+      "delta": -0.17500000000000004,
+      "p": 0.424892880101534,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Action-Adventure",
+      "nF2p": 14,
+      "nPaid": 17,
+      "medianF2p": 50.5,
+      "medianPaid": 803.5,
+      "delta": -0.865546218487395,
+      "p": 4.7285005850185244e-05,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Wargame",
+      "nF2p": 15,
+      "nPaid": 16,
+      "medianF2p": 661.5,
+      "medianPaid": 1690.5,
+      "delta": -0.3583333333333333,
+      "p": 0.09296509721535885,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "2D Platformer",
+      "nF2p": 16,
+      "nPaid": 15,
+      "medianF2p": 113.25,
+      "medianPaid": 273.0,
+      "delta": -0.625,
+      "p": 0.003230892642687009,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Arena Shooter",
+      "nF2p": 17,
+      "nPaid": 13,
+      "medianF2p": 64.0,
+      "medianPaid": 442,
+      "delta": -0.5565610859728507,
+      "p": 0.010672565959149897,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Precision Platformer",
+      "nF2p": 11,
+      "nPaid": 18,
+      "medianF2p": 188.5,
+      "medianPaid": 210.25,
+      "delta": -0.2727272727272727,
+      "p": 0.2336196589901771,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Twin Stick Shooter",
+      "nF2p": 9,
+      "nPaid": 20,
+      "medianF2p": 56.0,
+      "medianPaid": 380.75,
+      "delta": -0.5222222222222221,
+      "p": 0.02837726673798746,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Space Sim",
+      "nF2p": 13,
+      "nPaid": 14,
+      "medianF2p": 448.5,
+      "medianPaid": 1061.0,
+      "delta": -0.5824175824175823,
+      "p": 0.010845950917060454,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Tactical RPG",
+      "nF2p": 12,
+      "nPaid": 15,
+      "medianF2p": 198.0,
+      "medianPaid": 1019.0,
+      "delta": -0.37777777777777777,
+      "p": 0.10212608473203721,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Immersive Sim",
+      "nF2p": 9,
+      "nPaid": 18,
+      "medianF2p": 25.5,
+      "medianPaid": 698.0,
+      "delta": -0.8024691358024691,
+      "p": 0.0009081975515243086,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Football (Soccer)",
+      "nF2p": 12,
+      "nPaid": 15,
+      "medianF2p": 467.75,
+      "medianPaid": 448.5,
+      "delta": -0.2777777777777778,
+      "p": 0.23190048706459074,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Party-Based RPG",
+      "nF2p": 8,
+      "nPaid": 12,
+      "medianF2p": 1043.75,
+      "medianPaid": 792.25,
+      "delta": -0.15625,
+      "p": 0.5890143815020005,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Hero Shooter",
+      "nF2p": 9,
+      "nPaid": 10,
+      "medianF2p": 75.5,
+      "medianPaid": 357.0,
+      "delta": -0.06666666666666665,
+      "p": 0.8382564863858263,
+      "tiedAtZero": 0.0,
+      "usable": true
+     }
+    ],
+    "priceBands": [
+     {
+      "band": "0-10",
+      "n": 549,
+      "median": 233.0
+     },
+     {
+      "band": "10-30",
+      "n": 807,
+      "median": 630.0
+     },
+     {
+      "band": "30-60",
+      "n": 201,
+      "median": 1420.5
+     },
+     {
+      "band": "60+",
+      "n": 42,
+      "median": 2484.5
+     }
+    ]
+   },
+   "upper": {
+    "naive": {
+     "label": "ALL GAMES (naive)",
+     "nF2p": 1198,
+     "nPaid": 1599,
+     "medianF2p": 124.5,
+     "medianPaid": 529.5,
+     "delta": -0.4573246425927724,
+     "p": 2.0220324808611732e-95,
+     "tiedAtZero": 0.0,
+     "usable": true
+    },
+    "adjustedDelta": -0.482341679681596,
+    "usableGenres": 58,
+    "byGenre": [
+     {
+      "label": "Point & Click",
+      "nF2p": 24,
+      "nPaid": 23,
+      "medianF2p": 83.5,
+      "medianPaid": 272.0,
+      "delta": -0.5996376811594203,
+      "p": 0.00044535714683169634,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Clicker",
+      "nF2p": 25,
+      "nPaid": 22,
+      "medianF2p": 530,
+      "medianPaid": 218.25,
+      "delta": 0.3527272727272728,
+      "p": 0.03964902300854827,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Idler",
+      "nF2p": 25,
+      "nPaid": 22,
+      "medianF2p": 2723.0,
+      "medianPaid": 1763.5,
+      "delta": 0.0072727272727273196,
+      "p": 0.9744879147351644,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Simulation",
+      "nF2p": 25,
+      "nPaid": 21,
+      "medianF2p": 98.0,
+      "medianPaid": 682,
+      "delta": -0.45333333333333337,
+      "p": 0.008966541949717861,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Visual Novel",
+      "nF2p": 25,
+      "nPaid": 21,
+      "medianF2p": 83,
+      "medianPaid": 587.0,
+      "delta": -0.7257142857142858,
+      "p": 2.789352367360645e-05,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Adventure",
+      "nF2p": 24,
+      "nPaid": 22,
+      "medianF2p": 45.5,
+      "medianPaid": 207.5,
+      "delta": -0.5189393939393939,
+      "p": 0.002684553364510294,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Psychological Horror",
+      "nF2p": 25,
+      "nPaid": 21,
+      "medianF2p": 72.5,
+      "medianPaid": 233.5,
+      "delta": -0.4990476190476191,
+      "p": 0.004002458593714595,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Hack and Slash",
+      "nF2p": 22,
+      "nPaid": 24,
+      "medianF2p": 49.5,
+      "medianPaid": 474.0,
+      "delta": -0.5151515151515151,
+      "p": 0.002885858214969161,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Action",
+      "nF2p": 22,
+      "nPaid": 22,
+      "medianF2p": 57.5,
+      "medianPaid": 181.5,
+      "delta": -0.45867768595041325,
+      "p": 0.009489187084630925,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "RPG",
+      "nF2p": 24,
+      "nPaid": 20,
+      "medianF2p": 231.25,
+      "medianPaid": 317.25,
+      "delta": -0.32499999999999996,
+      "p": 0.06774601384068937,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Racing",
+      "nF2p": 24,
+      "nPaid": 19,
+      "medianF2p": 26.5,
+      "medianPaid": 189,
+      "delta": -0.8267543859649122,
+      "p": 4.261340912161015e-06,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "MMORPG",
+      "nF2p": 21,
+      "nPaid": 21,
+      "medianF2p": 1216,
+      "medianPaid": 2809.5,
+      "delta": -0.39229024943310653,
+      "p": 0.030510915138169135,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Card Battler",
+      "nF2p": 20,
+      "nPaid": 22,
+      "medianF2p": 489.5,
+      "medianPaid": 949.0,
+      "delta": -0.32272727272727275,
+      "p": 0.07580451183093122,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Puzzle",
+      "nF2p": 21,
+      "nPaid": 21,
+      "medianF2p": 88.5,
+      "medianPaid": 440.0,
+      "delta": -0.6598639455782314,
+      "p": 0.000264719504768907,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "FPS",
+      "nF2p": 23,
+      "nPaid": 18,
+      "medianF2p": 37.0,
+      "medianPaid": 493.25,
+      "delta": -0.6280193236714976,
+      "p": 0.0006667485068920764,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "RTS",
+      "nF2p": 20,
+      "nPaid": 21,
+      "medianF2p": 251.5,
+      "medianPaid": 1044.5,
+      "delta": -0.5476190476190477,
+      "p": 0.002822904930652645,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Casual",
+      "nF2p": 20,
+      "nPaid": 21,
+      "medianF2p": 55.25,
+      "medianPaid": 161.0,
+      "delta": -0.33571428571428574,
+      "p": 0.06785320516750745,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "City Builder",
+      "nF2p": 21,
+      "nPaid": 19,
+      "medianF2p": 244.5,
+      "medianPaid": 1259.5,
+      "delta": -0.6591478696741855,
+      "p": 0.0003881690483723231,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Open World Survival Craft",
+      "nF2p": 15,
+      "nPaid": 25,
+      "medianF2p": 396.0,
+      "medianPaid": 1493.5,
+      "delta": -0.5093333333333334,
+      "p": 0.007953554747067548,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Sports",
+      "nF2p": 17,
+      "nPaid": 23,
+      "medianF2p": 60,
+      "medianPaid": 556.5,
+      "delta": -0.6265984654731458,
+      "p": 0.0008442153688386253,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Dating Sim",
+      "nF2p": 15,
+      "nPaid": 25,
+      "medianF2p": 241.0,
+      "medianPaid": 370.5,
+      "delta": -0.1253333333333333,
+      "p": 0.5204927613506407,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Strategy",
+      "nF2p": 23,
+      "nPaid": 16,
+      "medianF2p": 132.5,
+      "medianPaid": 532.75,
+      "delta": -0.375,
+      "p": 0.05048720758722591,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Tower Defense",
+      "nF2p": 19,
+      "nPaid": 20,
+      "medianF2p": 194.0,
+      "medianPaid": 722.0,
+      "delta": -0.631578947368421,
+      "p": 0.0007860519755948526,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "JRPG",
+      "nF2p": 20,
+      "nPaid": 19,
+      "medianF2p": 137.0,
+      "medianPaid": 922.5,
+      "delta": -0.6263157894736842,
+      "p": 0.0008698252117808269,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Hidden Object",
+      "nF2p": 21,
+      "nPaid": 18,
+      "medianF2p": 83.0,
+      "medianPaid": 291.75,
+      "delta": -0.5026455026455027,
+      "p": 0.007762345606556909,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Battle Royale",
+      "nF2p": 21,
+      "nPaid": 18,
+      "medianF2p": 459.0,
+      "medianPaid": 270.0,
+      "delta": 0.12433862433862441,
+      "p": 0.516995047366337,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Third-Person Shooter",
+      "nF2p": 22,
+      "nPaid": 16,
+      "medianF2p": 115.5,
+      "medianPaid": 475.5,
+      "delta": -0.5056818181818181,
+      "p": 0.008882144147300963,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Beat 'em up",
+      "nF2p": 17,
+      "nPaid": 21,
+      "medianF2p": 183.5,
+      "medianPaid": 380.0,
+      "delta": -0.5518207282913166,
+      "p": 0.004013877358236883,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Walking Simulator",
+      "nF2p": 22,
+      "nPaid": 16,
+      "medianF2p": 50.0,
+      "medianPaid": 201.5,
+      "delta": -0.8039772727272727,
+      "p": 3.0596518176551495e-05,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Life Sim",
+      "nF2p": 15,
+      "nPaid": 23,
+      "medianF2p": 61.0,
+      "medianPaid": 800.5,
+      "delta": -0.5536231884057972,
+      "p": 0.004552746214903909,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Automobile Sim",
+      "nF2p": 13,
+      "nPaid": 24,
+      "medianF2p": 188.5,
+      "medianPaid": 825.5,
+      "delta": -0.7435897435897436,
+      "p": 0.00023827410937832605,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Survival Horror",
+      "nF2p": 19,
+      "nPaid": 18,
+      "medianF2p": 60.5,
+      "medianPaid": 239.25,
+      "delta": -0.7076023391812866,
+      "p": 0.00025020471121591924,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Interactive Fiction",
+      "nF2p": 19,
+      "nPaid": 18,
+      "medianF2p": 48,
+      "medianPaid": 342.25,
+      "delta": -0.7017543859649122,
+      "p": 0.00028207439710180716,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Bullet Hell",
+      "nF2p": 15,
+      "nPaid": 20,
+      "medianF2p": 84,
+      "medianPaid": 347.0,
+      "delta": -0.6133333333333333,
+      "p": 0.002288413662045401,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Choose Your Own Adventure",
+      "nF2p": 17,
+      "nPaid": 18,
+      "medianF2p": 246.5,
+      "medianPaid": 434.25,
+      "delta": -0.21568627450980393,
+      "p": 0.2834237661652213,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Turn-Based Tactics",
+      "nF2p": 16,
+      "nPaid": 19,
+      "medianF2p": 105.75,
+      "medianPaid": 1046.0,
+      "delta": -0.513157894736842,
+      "p": 0.010279538379799787,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Horror",
+      "nF2p": 18,
+      "nPaid": 17,
+      "medianF2p": 24.0,
+      "medianPaid": 167,
+      "delta": -0.7712418300653595,
+      "p": 0.00010399847790057648,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Dungeon Crawler",
+      "nF2p": 11,
+      "nPaid": 23,
+      "medianF2p": 248.5,
+      "medianPaid": 913.0,
+      "delta": -0.5375494071146245,
+      "p": 0.012953706688763458,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Shoot 'Em Up",
+      "nF2p": 17,
+      "nPaid": 17,
+      "medianF2p": 82.0,
+      "medianPaid": 249,
+      "delta": -0.6747404844290658,
+      "p": 0.0008347042748786483,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "3D Platformer",
+      "nF2p": 20,
+      "nPaid": 14,
+      "medianF2p": 68.75,
+      "medianPaid": 237.0,
+      "delta": -0.5285714285714286,
+      "p": 0.01011233392133347,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Turn-Based Strategy",
+      "nF2p": 15,
+      "nPaid": 18,
+      "medianF2p": 158.0,
+      "medianPaid": 1154.25,
+      "delta": -0.7111111111111111,
+      "p": 0.0005547800517291274,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Rhythm",
+      "nF2p": 11,
+      "nPaid": 22,
+      "medianF2p": 99.0,
+      "medianPaid": 342.25,
+      "delta": -0.4132231404958677,
+      "p": 0.05870740843120503,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Real Time Tactics",
+      "nF2p": 12,
+      "nPaid": 21,
+      "medianF2p": 289.5,
+      "medianPaid": 956.5,
+      "delta": -0.4444444444444444,
+      "p": 0.03778228564629276,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Metroidvania",
+      "nF2p": 12,
+      "nPaid": 20,
+      "medianF2p": 198.0,
+      "medianPaid": 602.75,
+      "delta": -0.5583333333333333,
+      "p": 0.00963924310488473,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Action RPG",
+      "nF2p": 17,
+      "nPaid": 15,
+      "medianF2p": 166,
+      "medianPaid": 1137.0,
+      "delta": -0.6470588235294117,
+      "p": 0.0019579005008961226,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Deckbuilding",
+      "nF2p": 12,
+      "nPaid": 20,
+      "medianF2p": 818.75,
+      "medianPaid": 1307.25,
+      "delta": -0.17500000000000004,
+      "p": 0.424892880101534,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Action-Adventure",
+      "nF2p": 14,
+      "nPaid": 17,
+      "medianF2p": 50.5,
+      "medianPaid": 803.5,
+      "delta": -0.865546218487395,
+      "p": 4.7285005850185244e-05,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Wargame",
+      "nF2p": 15,
+      "nPaid": 16,
+      "medianF2p": 661.5,
+      "medianPaid": 1690.5,
+      "delta": -0.3583333333333333,
+      "p": 0.09296509721535885,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "2D Platformer",
+      "nF2p": 16,
+      "nPaid": 15,
+      "medianF2p": 113.25,
+      "medianPaid": 273.0,
+      "delta": -0.625,
+      "p": 0.003230892642687009,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Arena Shooter",
+      "nF2p": 17,
+      "nPaid": 13,
+      "medianF2p": 64.0,
+      "medianPaid": 442,
+      "delta": -0.5565610859728507,
+      "p": 0.010672565959149897,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Precision Platformer",
+      "nF2p": 11,
+      "nPaid": 18,
+      "medianF2p": 188.5,
+      "medianPaid": 210.25,
+      "delta": -0.2727272727272727,
+      "p": 0.2336196589901771,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Twin Stick Shooter",
+      "nF2p": 9,
+      "nPaid": 20,
+      "medianF2p": 56.0,
+      "medianPaid": 380.75,
+      "delta": -0.5222222222222221,
+      "p": 0.02837726673798746,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Space Sim",
+      "nF2p": 13,
+      "nPaid": 14,
+      "medianF2p": 448.5,
+      "medianPaid": 1061.0,
+      "delta": -0.5824175824175823,
+      "p": 0.010845950917060454,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Tactical RPG",
+      "nF2p": 12,
+      "nPaid": 15,
+      "medianF2p": 198.0,
+      "medianPaid": 1019.0,
+      "delta": -0.37777777777777777,
+      "p": 0.10212608473203721,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Immersive Sim",
+      "nF2p": 9,
+      "nPaid": 18,
+      "medianF2p": 25.5,
+      "medianPaid": 698.0,
+      "delta": -0.8024691358024691,
+      "p": 0.0009081975515243086,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Football (Soccer)",
+      "nF2p": 12,
+      "nPaid": 15,
+      "medianF2p": 467.75,
+      "medianPaid": 448.5,
+      "delta": -0.2777777777777778,
+      "p": 0.23190048706459074,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Party-Based RPG",
+      "nF2p": 8,
+      "nPaid": 12,
+      "medianF2p": 1043.75,
+      "medianPaid": 792.25,
+      "delta": -0.15625,
+      "p": 0.5890143815020005,
+      "tiedAtZero": 0.0,
+      "usable": true
+     },
+     {
+      "label": "Hero Shooter",
+      "nF2p": 9,
+      "nPaid": 10,
+      "medianF2p": 75.5,
+      "medianPaid": 357.0,
+      "delta": -0.06666666666666665,
+      "p": 0.8382564863858263,
+      "tiedAtZero": 0.0,
+      "usable": true
+     }
+    ],
+    "priceBands": [
+     {
+      "band": "0-10",
+      "n": 549,
+      "median": 233.0
+     },
+     {
+      "band": "10-30",
+      "n": 807,
+      "median": 630.0
+     },
+     {
+      "band": "30-60",
+      "n": 201,
+      "median": 1420.5
+     },
+     {
+      "band": "60+",
+      "n": 42,
+      "median": 2484.5
+     }
+    ]
+   }
+  },
+  "ccu_per_owner": {
+   "lower": {
+    "naive": {
+     "label": "ALL GAMES (naive)",
+     "nF2p": 3062,
+     "nPaid": 17699,
+     "medianF2p": 0.0,
+     "medianPaid": 0.0,
+     "delta": -0.10864217955757671,
+     "p": 1.0629016772536555e-25,
+     "tiedAtZero": 0.5409180675304658,
+     "usable": true
+    },
+    "adjustedDelta": -0.09170761680414491,
+    "usableGenres": 59,
+    "byGenre": [
+     {
+      "label": "FPS",
+      "nF2p": 202,
+      "nPaid": 916,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.054320333780102925,
+      "p": 0.1859777142041749,
+      "tiedAtZero": 0.5465116279069767,
+      "usable": true
+     },
+     {
+      "label": "Visual Novel",
+      "nF2p": 167,
+      "nPaid": 844,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.19090728495615406,
+      "p": 2.1062761197658687e-05,
+      "tiedAtZero": 0.5400593471810089,
+      "usable": true
+     },
+     {
+      "label": "Casual",
+      "nF2p": 185,
+      "nPaid": 759,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": 0.026507139550617786,
+      "p": 0.45680282532948313,
+      "tiedAtZero": 0.7574152542372882,
+      "usable": true
+     },
+     {
+      "label": "Psychological Horror",
+      "nF2p": 123,
+      "nPaid": 803,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": 0.02187933460903735,
+      "p": 0.667345028999256,
+      "tiedAtZero": 0.5561555075593952,
+      "usable": true
+     },
+     {
+      "label": "Point & Click",
+      "nF2p": 107,
+      "nPaid": 760,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.08448106246925724,
+      "p": 0.11562700380917099,
+      "tiedAtZero": 0.5743944636678201,
+      "usable": true
+     },
+     {
+      "label": "Action",
+      "nF2p": 223,
+      "nPaid": 620,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.08976565890351507,
+      "p": 0.007965807215862954,
+      "tiedAtZero": 0.7591933570581257,
+      "usable": true
+     },
+     {
+      "label": "Action-Adventure",
+      "nF2p": 71,
+      "nPaid": 672,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.1837273641851107,
+      "p": 0.003225244428324958,
+      "tiedAtZero": 0.6312247644683715,
+      "usable": true
+     },
+     {
+      "label": "JRPG",
+      "nF2p": 45,
+      "nPaid": 628,
+      "medianF2p": 0.0,
+      "medianPaid": 2e-05,
+      "delta": -0.30601556970983723,
+      "p": 0.00029957082252948087,
+      "tiedAtZero": 0.462109955423477,
+      "usable": true
+     },
+     {
+      "label": "Survival Horror",
+      "nF2p": 63,
+      "nPaid": 446,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.005587586305075054,
+      "p": 0.9370474576280593,
+      "tiedAtZero": 0.5677799607072691,
+      "usable": true
+     },
+     {
+      "label": "Action RPG",
+      "nF2p": 50,
+      "nPaid": 437,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.21272311212814643,
+      "p": 0.007360735382117789,
+      "tiedAtZero": 0.5359342915811088,
+      "usable": true
+     },
+     {
+      "label": "Adventure",
+      "nF2p": 130,
+      "nPaid": 344,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.09903846153846152,
+      "p": 0.02785320784814018,
+      "tiedAtZero": 0.7531645569620253,
+      "usable": true
+     },
+     {
+      "label": "3D Platformer",
+      "nF2p": 74,
+      "nPaid": 383,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.2146637499117917,
+      "p": 0.0005958452857631584,
+      "tiedAtZero": 0.649890590809628,
+      "usable": true
+     },
+     {
+      "label": "Turn-Based Strategy",
+      "nF2p": 41,
+      "nPaid": 398,
+      "medianF2p": 0.0,
+      "medianPaid": 2.5e-05,
+      "delta": -0.34556930996445645,
+      "p": 0.00011984991879561129,
+      "tiedAtZero": 0.46697038724373574,
+      "usable": true
+     },
+     {
+      "label": "Hidden Object",
+      "nF2p": 33,
+      "nPaid": 402,
+      "medianF2p": 4e-06,
+      "medianPaid": 0.0,
+      "delta": 0.10183928840645251,
+      "p": 0.2752441750537518,
+      "tiedAtZero": 0.5885057471264368,
+      "usable": true
+     },
+     {
+      "label": "Bullet Hell",
+      "nF2p": 44,
+      "nPaid": 385,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.1823494687131051,
+      "p": 0.027347481910697028,
+      "tiedAtZero": 0.578088578088578,
+      "usable": true
+     },
+     {
+      "label": "2D Platformer",
+      "nF2p": 62,
+      "nPaid": 349,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.1810703392180424,
+      "p": 0.007516485057191058,
+      "tiedAtZero": 0.6520681265206812,
+      "usable": true
+     },
+     {
+      "label": "Shoot 'Em Up",
+      "nF2p": 27,
+      "nPaid": 371,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.024358590396326263,
+      "p": 0.7879791442666241,
+      "tiedAtZero": 0.7286432160804021,
+      "usable": true
+     },
+     {
+      "label": "Walking Simulator",
+      "nF2p": 45,
+      "nPaid": 337,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.13887240356083086,
+      "p": 0.09035096743333004,
+      "tiedAtZero": 0.5863874345549738,
+      "usable": true
+     },
+     {
+      "label": "City Builder",
+      "nF2p": 34,
+      "nPaid": 319,
+      "medianF2p": 2e-05,
+      "medianPaid": 0.00012,
+      "delta": -0.22349253180896178,
+      "p": 0.03090420209300139,
+      "tiedAtZero": 0.24645892351274787,
+      "usable": true
+     },
+     {
+      "label": "Interactive Fiction",
+      "nF2p": 36,
+      "nPaid": 315,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.18941798941798937,
+      "p": 0.026443766497603723,
+      "tiedAtZero": 0.6666666666666666,
+      "usable": true
+     },
+     {
+      "label": "Turn-Based Tactics",
+      "nF2p": 35,
+      "nPaid": 311,
+      "medianF2p": 0.0,
+      "medianPaid": 1.5e-05,
+      "delta": -0.19108865411116216,
+      "p": 0.04811253004325529,
+      "tiedAtZero": 0.49421965317919075,
+      "usable": true
+     },
+     {
+      "label": "Hack and Slash",
+      "nF2p": 38,
+      "nPaid": 297,
+      "medianF2p": 0.0,
+      "medianPaid": 2.5e-05,
+      "delta": -0.27060074428495484,
+      "p": 0.004756108973855487,
+      "tiedAtZero": 0.4208955223880597,
+      "usable": true
+     },
+     {
+      "label": "Simulation",
+      "nF2p": 77,
+      "nPaid": 244,
+      "medianF2p": 0.0,
+      "medianPaid": 2e-05,
+      "delta": -0.1763891845859059,
+      "p": 0.013784172115118825,
+      "tiedAtZero": 0.4672897196261682,
+      "usable": true
+     },
+     {
+      "label": "RTS",
+      "nF2p": 41,
+      "nPaid": 262,
+      "medianF2p": 0.0,
+      "medianPaid": 5e-05,
+      "delta": -0.2464159374418171,
+      "p": 0.0096141017832542,
+      "tiedAtZero": 0.3432343234323432,
+      "usable": true
+     },
+     {
+      "label": "Dungeon Crawler",
+      "nF2p": 14,
+      "nPaid": 286,
+      "medianF2p": 0.0,
+      "medianPaid": 1e-05,
+      "delta": -0.26648351648351654,
+      "p": 0.07328307165065992,
+      "tiedAtZero": 0.49,
+      "usable": true
+     },
+     {
+      "label": "Tower Defense",
+      "nF2p": 38,
+      "nPaid": 261,
+      "medianF2p": 0.0,
+      "medianPaid": 5e-06,
+      "delta": -0.11252268602540838,
+      "p": 0.231631449041918,
+      "tiedAtZero": 0.4983277591973244,
+      "usable": true
+     },
+     {
+      "label": "Choose Your Own Adventure",
+      "nF2p": 32,
+      "nPaid": 248,
+      "medianF2p": 1.25e-05,
+      "medianPaid": 0.0,
+      "delta": 0.1323084677419355,
+      "p": 0.162741276622257,
+      "tiedAtZero": 0.6214285714285714,
+      "usable": true
+     },
+     {
+      "label": "Third-Person Shooter",
+      "nF2p": 37,
+      "nPaid": 229,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.17195798418505837,
+      "p": 0.06912931913701512,
+      "tiedAtZero": 0.5300751879699248,
+      "usable": true
+     },
+     {
+      "label": "Metroidvania",
+      "nF2p": 14,
+      "nPaid": 229,
+      "medianF2p": 0.0,
+      "medianPaid": 2.5e-05,
+      "delta": -0.34497816593886466,
+      "p": 0.0267935177481602,
+      "tiedAtZero": 0.35390946502057613,
+      "usable": true
+     },
+     {
+      "label": "Automobile Sim",
+      "nF2p": 16,
+      "nPaid": 223,
+      "medianF2p": 4.5e-06,
+      "medianPaid": 0.00012,
+      "delta": -0.41451793721973096,
+      "p": 0.005251761213978831,
+      "tiedAtZero": 0.2594142259414226,
+      "usable": true
+     },
+     {
+      "label": "Immersive Sim",
+      "nF2p": 11,
+      "nPaid": 222,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0001,
+      "delta": -0.4406224406224406,
+      "p": 0.012661602032022339,
+      "tiedAtZero": 0.2875536480686695,
+      "usable": true
+     },
+     {
+      "label": "Arena Shooter",
+      "nF2p": 44,
+      "nPaid": 182,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": 0.15634365634365643,
+      "p": 0.020059812125324154,
+      "tiedAtZero": 0.8053097345132744,
+      "usable": true
+     },
+     {
+      "label": "Puzzle",
+      "nF2p": 36,
+      "nPaid": 185,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.0537537537537538,
+      "p": 0.5626697749610867,
+      "tiedAtZero": 0.6108597285067874,
+      "usable": true
+     },
+     {
+      "label": "Clicker",
+      "nF2p": 72,
+      "nPaid": 148,
+      "medianF2p": 5.4e-05,
+      "medianPaid": 0.0,
+      "delta": 0.4109421921921923,
+      "p": 1.1307619859318002e-07,
+      "tiedAtZero": 0.509090909090909,
+      "usable": true
+     },
+     {
+      "label": "Beat 'em up",
+      "nF2p": 19,
+      "nPaid": 198,
+      "medianF2p": 0.0,
+      "medianPaid": 5e-06,
+      "delta": -0.11483253588516751,
+      "p": 0.3785813653913263,
+      "tiedAtZero": 0.4976958525345622,
+      "usable": true
+     },
+     {
+      "label": "Strategy",
+      "nF2p": 52,
+      "nPaid": 159,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": 0.012578616352201255,
+      "p": 0.8772038522649055,
+      "tiedAtZero": 0.6208530805687204,
+      "usable": true
+     },
+     {
+      "label": "Open World Survival Craft",
+      "nF2p": 15,
+      "nPaid": 182,
+      "medianF2p": 5e-05,
+      "medianPaid": 0.00019250000000000002,
+      "delta": -0.25054945054945055,
+      "p": 0.10697710770385697,
+      "tiedAtZero": 0.14720812182741116,
+      "usable": true
+     },
+     {
+      "label": "Space Sim",
+      "nF2p": 20,
+      "nPaid": 172,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.05813953488372092,
+      "p": 0.6417469298675635,
+      "tiedAtZero": 0.5572916666666666,
+      "usable": true
+     },
+     {
+      "label": "Life Sim",
+      "nF2p": 15,
+      "nPaid": 166,
+      "medianF2p": 2e-05,
+      "medianPaid": 0.00013499999999999997,
+      "delta": -0.3028112449799196,
+      "p": 0.05072890266473638,
+      "tiedAtZero": 0.2541436464088398,
+      "usable": true
+     },
+     {
+      "label": "Dating Sim",
+      "nF2p": 15,
+      "nPaid": 162,
+      "medianF2p": 2.5e-05,
+      "medianPaid": 5e-05,
+      "delta": 0.0004115226337448874,
+      "p": 1.0,
+      "tiedAtZero": 0.3502824858757062,
+      "usable": true
+     },
+     {
+      "label": "Racing",
+      "nF2p": 24,
+      "nPaid": 137,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.18096107055961075,
+      "p": 0.1218957501031121,
+      "tiedAtZero": 0.5527950310559007,
+      "usable": true
+     },
+     {
+      "label": "Rhythm",
+      "nF2p": 20,
+      "nPaid": 141,
+      "medianF2p": 0.0,
+      "medianPaid": 5e-06,
+      "delta": -0.1819148936170213,
+      "p": 0.15890992267295745,
+      "tiedAtZero": 0.5093167701863354,
+      "usable": true
+     },
+     {
+      "label": "Precision Platformer",
+      "nF2p": 17,
+      "nPaid": 136,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": 0.016003460207612452,
+      "p": 0.890409517063609,
+      "tiedAtZero": 0.7516339869281046,
+      "usable": true
+     },
+     {
+      "label": "RPG",
+      "nF2p": 33,
+      "nPaid": 119,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.026228673287496784,
+      "p": 0.7664728265826208,
+      "tiedAtZero": 0.743421052631579,
+      "usable": true
+     },
+     {
+      "label": "Tactical RPG",
+      "nF2p": 13,
+      "nPaid": 132,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.18881118881118886,
+      "p": 0.21678286470195182,
+      "tiedAtZero": 0.5655172413793104,
+      "usable": true
+     },
+     {
+      "label": "Idler",
+      "nF2p": 41,
+      "nPaid": 100,
+      "medianF2p": 0.0009,
+      "medianPaid": 0.000145,
+      "delta": 0.29000000000000004,
+      "p": 0.006452362975581402,
+      "tiedAtZero": 0.2695035460992908,
+      "usable": true
+     },
+     {
+      "label": "Twin Stick Shooter",
+      "nF2p": 14,
+      "nPaid": 126,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.05045351473922899,
+      "p": 0.7258427300367072,
+      "tiedAtZero": 0.6214285714285714,
+      "usable": true
+     },
+     {
+      "label": "MMORPG",
+      "nF2p": 106,
+      "nPaid": 32,
+      "medianF2p": 7.79e-05,
+      "medianPaid": 0.00014025000000000002,
+      "delta": -0.09021226415094341,
+      "p": 0.4385043190155848,
+      "tiedAtZero": 0.2391304347826087,
+      "usable": true
+     },
+     {
+      "label": "Party-Based RPG",
+      "nF2p": 13,
+      "nPaid": 105,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.1135531135531136,
+      "p": 0.45932692840486367,
+      "tiedAtZero": 0.5847457627118644,
+      "usable": true
+     },
+     {
+      "label": "Wargame",
+      "nF2p": 16,
+      "nPaid": 99,
+      "medianF2p": 3.0000000000000004e-05,
+      "medianPaid": 6e-05,
+      "delta": -0.06060606060606055,
+      "p": 0.6948008968673436,
+      "tiedAtZero": 0.34782608695652173,
+      "usable": true
+     },
+     {
+      "label": "Sports",
+      "nF2p": 18,
+      "nPaid": 80,
+      "medianF2p": 0.0,
+      "medianPaid": 5e-05,
+      "delta": -0.2881944444444444,
+      "p": 0.05075359226118365,
+      "tiedAtZero": 0.37755102040816324,
+      "usable": true
+     },
+     {
+      "label": "Card Battler",
+      "nF2p": 20,
+      "nPaid": 64,
+      "medianF2p": 1.5000000000000002e-05,
+      "medianPaid": 9e-05,
+      "delta": -0.28046875000000004,
+      "p": 0.056297717778673664,
+      "tiedAtZero": 0.30952380952380953,
+      "usable": true
+     },
+     {
+      "label": "Real Time Tactics",
+      "nF2p": 14,
+      "nPaid": 66,
+      "medianF2p": 4e-05,
+      "medianPaid": 5.5e-05,
+      "delta": -0.11038961038961037,
+      "p": 0.5071583867882166,
+      "tiedAtZero": 0.4125,
+      "usable": true
+     },
+     {
+      "label": "Battle Royale",
+      "nF2p": 38,
+      "nPaid": 39,
+      "medianF2p": 2.5e-06,
+      "medianPaid": 0.0,
+      "delta": 0.09581646423751677,
+      "p": 0.42927035024476795,
+      "tiedAtZero": 0.5584415584415584,
+      "usable": true
+     },
+     {
+      "label": "Deckbuilding",
+      "nF2p": 12,
+      "nPaid": 53,
+      "medianF2p": 0.00011,
+      "medianPaid": 0.00011,
+      "delta": -0.13207547169811318,
+      "p": 0.48051557047908056,
+      "tiedAtZero": 0.2153846153846154,
+      "usable": true
+     },
+     {
+      "label": "MOBA",
+      "nF2p": 37,
+      "nPaid": 13,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": 0.3284823284823284,
+      "p": 0.0466185693465833,
+      "tiedAtZero": 0.62,
+      "usable": true
+     },
+     {
+      "label": "Football (Soccer)",
+      "nF2p": 12,
+      "nPaid": 33,
+      "medianF2p": 3.5000000000000004e-05,
+      "medianPaid": 2e-05,
+      "delta": 0.10353535353535359,
+      "p": 0.5934282959723517,
+      "tiedAtZero": 0.4222222222222222,
+      "usable": true
+     },
+     {
+      "label": "Hero Shooter",
+      "nF2p": 11,
+      "nPaid": 33,
+      "medianF2p": 5e-06,
+      "medianPaid": 0.0,
+      "delta": 0.3278236914600552,
+      "p": 0.035478794005280825,
+      "tiedAtZero": 0.75,
+      "usable": true
+     },
+     {
+      "label": "Horror",
+      "nF2p": 18,
+      "nPaid": 26,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": 0.17948717948717952,
+      "p": 0.15977787283556236,
+      "tiedAtZero": 0.7954545454545454,
+      "usable": true
+     }
+    ],
+    "priceBands": [
+     {
+      "band": "0-10",
+      "n": 8285,
+      "median": 0.0
+     },
+     {
+      "band": "10-30",
+      "n": 7431,
+      "median": 2e-05
+     },
+     {
+      "band": "30-60",
+      "n": 1631,
+      "median": 0.0002
+     },
+     {
+      "band": "60+",
+      "n": 352,
+      "median": 0.000522
+     }
+    ]
+   },
+   "midpoint": {
+    "naive": {
+     "label": "ALL GAMES (naive)",
+     "nF2p": 3062,
+     "nPaid": 17699,
+     "medianF2p": 0.0,
+     "medianPaid": 0.0,
+     "delta": -0.10869275679684476,
+     "p": 1.0141691540187479e-25,
+     "tiedAtZero": 0.5409180675304658,
+     "usable": true
+    },
+    "adjustedDelta": -0.09175397545034673,
+    "usableGenres": 59,
+    "byGenre": [
+     {
+      "label": "FPS",
+      "nF2p": 202,
+      "nPaid": 916,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.05467162436767692,
+      "p": 0.1831611301775531,
+      "tiedAtZero": 0.5465116279069767,
+      "usable": true
+     },
+     {
+      "label": "Visual Novel",
+      "nF2p": 167,
+      "nPaid": 844,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.19020489826035136,
+      "p": 2.2614127417907413e-05,
+      "tiedAtZero": 0.5400593471810089,
+      "usable": true
+     },
+     {
+      "label": "Casual",
+      "nF2p": 185,
+      "nPaid": 759,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": 0.02594452159669558,
+      "p": 0.4664201054563701,
+      "tiedAtZero": 0.7574152542372882,
+      "usable": true
+     },
+     {
+      "label": "Psychological Horror",
+      "nF2p": 123,
+      "nPaid": 803,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": 0.02163634338709519,
+      "p": 0.670843037689238,
+      "tiedAtZero": 0.5561555075593952,
+      "usable": true
+     },
+     {
+      "label": "Point & Click",
+      "nF2p": 107,
+      "nPaid": 760,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.08427201180521393,
+      "p": 0.11657616827809353,
+      "tiedAtZero": 0.5743944636678201,
+      "usable": true
+     },
+     {
+      "label": "Action",
+      "nF2p": 223,
+      "nPaid": 620,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.08937509040937364,
+      "p": 0.008243562729488276,
+      "tiedAtZero": 0.7591933570581257,
+      "usable": true
+     },
+     {
+      "label": "Action-Adventure",
+      "nF2p": 71,
+      "nPaid": 672,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.1851106639839034,
+      "p": 0.0030019734826927593,
+      "tiedAtZero": 0.6312247644683715,
+      "usable": true
+     },
+     {
+      "label": "JRPG",
+      "nF2p": 45,
+      "nPaid": 628,
+      "medianF2p": 0.0,
+      "medianPaid": 1.3333333333333333e-05,
+      "delta": -0.30665251238499647,
+      "p": 0.00029121138824842076,
+      "tiedAtZero": 0.462109955423477,
+      "usable": true
+     },
+     {
+      "label": "Survival Horror",
+      "nF2p": 63,
+      "nPaid": 446,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.007295892946117211,
+      "p": 0.9177421107553849,
+      "tiedAtZero": 0.5677799607072691,
+      "usable": true
+     },
+     {
+      "label": "Action RPG",
+      "nF2p": 50,
+      "nPaid": 437,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.21272311212814643,
+      "p": 0.007362975941735124,
+      "tiedAtZero": 0.5359342915811088,
+      "usable": true
+     },
+     {
+      "label": "Adventure",
+      "nF2p": 130,
+      "nPaid": 344,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.09948568872987473,
+      "p": 0.027164761374918314,
+      "tiedAtZero": 0.7531645569620253,
+      "usable": true
+     },
+     {
+      "label": "3D Platformer",
+      "nF2p": 74,
+      "nPaid": 383,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.21540469973890342,
+      "p": 0.0005705054808695327,
+      "tiedAtZero": 0.649890590809628,
+      "usable": true
+     },
+     {
+      "label": "Turn-Based Strategy",
+      "nF2p": 41,
+      "nPaid": 398,
+      "medianF2p": 0.0,
+      "medianPaid": 1.5238095238095238e-05,
+      "delta": -0.3461208481431548,
+      "p": 0.00011706922969978864,
+      "tiedAtZero": 0.46697038724373574,
+      "usable": true
+     },
+     {
+      "label": "Hidden Object",
+      "nF2p": 33,
+      "nPaid": 402,
+      "medianF2p": 2.666666666666667e-06,
+      "medianPaid": 0.0,
+      "delta": 0.10854816824966074,
+      "p": 0.24489898759244985,
+      "tiedAtZero": 0.5885057471264368,
+      "usable": true
+     },
+     {
+      "label": "Bullet Hell",
+      "nF2p": 44,
+      "nPaid": 385,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.1808736717827627,
+      "p": 0.028626756356609794,
+      "tiedAtZero": 0.578088578088578,
+      "usable": true
+     },
+     {
+      "label": "2D Platformer",
+      "nF2p": 62,
+      "nPaid": 349,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.1811627692023292,
+      "p": 0.007488626354372794,
+      "tiedAtZero": 0.6520681265206812,
+      "usable": true
+     },
+     {
+      "label": "Shoot 'Em Up",
+      "nF2p": 27,
+      "nPaid": 371,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.02425876010781669,
+      "p": 0.7888452623187778,
+      "tiedAtZero": 0.7286432160804021,
+      "usable": true
+     },
+     {
+      "label": "Walking Simulator",
+      "nF2p": 45,
+      "nPaid": 337,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.14151005605011535,
+      "p": 0.08442218140477269,
+      "tiedAtZero": 0.5863874345549738,
+      "usable": true
+     },
+     {
+      "label": "City Builder",
+      "nF2p": 34,
+      "nPaid": 319,
+      "medianF2p": 1.2380952380952381e-05,
+      "medianPaid": 8e-05,
+      "delta": -0.2204499354600774,
+      "p": 0.03327160862856039,
+      "tiedAtZero": 0.24645892351274787,
+      "usable": true
+     },
+     {
+      "label": "Interactive Fiction",
+      "nF2p": 36,
+      "nPaid": 315,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.18853615520282185,
+      "p": 0.027167712621824953,
+      "tiedAtZero": 0.6666666666666666,
+      "usable": true
+     },
+     {
+      "label": "Turn-Based Tactics",
+      "nF2p": 35,
+      "nPaid": 311,
+      "medianF2p": 0.0,
+      "medianPaid": 8.571428571428571e-06,
+      "delta": -0.1909967845659164,
+      "p": 0.04823753419821396,
+      "tiedAtZero": 0.49421965317919075,
+      "usable": true
+     },
+     {
+      "label": "Hack and Slash",
+      "nF2p": 38,
+      "nPaid": 297,
+      "medianF2p": 0.0,
+      "medianPaid": 1.4285714285714285e-05,
+      "delta": -0.27299308878256245,
+      "p": 0.0044004063379145366,
+      "tiedAtZero": 0.4208955223880597,
+      "usable": true
+     },
+     {
+      "label": "Simulation",
+      "nF2p": 77,
+      "nPaid": 244,
+      "medianF2p": 0.0,
+      "medianPaid": 1.3333333333333333e-05,
+      "delta": -0.17580370449222904,
+      "p": 0.014111981812161641,
+      "tiedAtZero": 0.4672897196261682,
+      "usable": true
+     },
+     {
+      "label": "RTS",
+      "nF2p": 41,
+      "nPaid": 262,
+      "medianF2p": 0.0,
+      "medianPaid": 2.857142857142857e-05,
+      "delta": -0.24278532861664492,
+      "p": 0.010737620485255419,
+      "tiedAtZero": 0.3432343234323432,
+      "usable": true
+     },
+     {
+      "label": "Dungeon Crawler",
+      "nF2p": 14,
+      "nPaid": 286,
+      "medianF2p": 0.0,
+      "medianPaid": 6.666666666666667e-06,
+      "delta": -0.26623376623376627,
+      "p": 0.073582208546337,
+      "tiedAtZero": 0.49,
+      "usable": true
+     },
+     {
+      "label": "Tower Defense",
+      "nF2p": 38,
+      "nPaid": 261,
+      "medianF2p": 0.0,
+      "medianPaid": 2.8571428571428573e-06,
+      "delta": -0.11292599314377894,
+      "p": 0.2299771365698145,
+      "tiedAtZero": 0.4983277591973244,
+      "usable": true
+     },
+     {
+      "label": "Choose Your Own Adventure",
+      "nF2p": 32,
+      "nPaid": 248,
+      "medianF2p": 7.142857142857143e-06,
+      "medianPaid": 0.0,
+      "delta": 0.1324344758064515,
+      "p": 0.1623663401466148,
+      "tiedAtZero": 0.6214285714285714,
+      "usable": true
+     },
+     {
+      "label": "Third-Person Shooter",
+      "nF2p": 37,
+      "nPaid": 229,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.17172194028089227,
+      "p": 0.06951557708476641,
+      "tiedAtZero": 0.5300751879699248,
+      "usable": true
+     },
+     {
+      "label": "Metroidvania",
+      "nF2p": 14,
+      "nPaid": 229,
+      "medianF2p": 0.0,
+      "medianPaid": 1.4666666666666666e-05,
+      "delta": -0.3502807236431691,
+      "p": 0.024565331713445913,
+      "tiedAtZero": 0.35390946502057613,
+      "usable": true
+     },
+     {
+      "label": "Automobile Sim",
+      "nF2p": 16,
+      "nPaid": 223,
+      "medianF2p": 2.761904761904762e-06,
+      "medianPaid": 6.857142857142857e-05,
+      "delta": -0.40639013452914796,
+      "p": 0.00621302147094399,
+      "tiedAtZero": 0.2594142259414226,
+      "usable": true
+     },
+     {
+      "label": "Immersive Sim",
+      "nF2p": 11,
+      "nPaid": 222,
+      "medianF2p": 0.0,
+      "medianPaid": 5.7857142857142855e-05,
+      "delta": -0.443079443079443,
+      "p": 0.012175525705279206,
+      "tiedAtZero": 0.2875536480686695,
+      "usable": true
+     },
+     {
+      "label": "Arena Shooter",
+      "nF2p": 44,
+      "nPaid": 182,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": 0.15559440559440563,
+      "p": 0.020664708985155735,
+      "tiedAtZero": 0.8053097345132744,
+      "usable": true
+     },
+     {
+      "label": "Puzzle",
+      "nF2p": 36,
+      "nPaid": 185,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.05360360360360361,
+      "p": 0.5637752943160038,
+      "tiedAtZero": 0.6108597285067874,
+      "usable": true
+     },
+     {
+      "label": "Clicker",
+      "nF2p": 72,
+      "nPaid": 148,
+      "medianF2p": 3.1428571428571424e-05,
+      "medianPaid": 0.0,
+      "delta": 0.41188063063063063,
+      "p": 1.0593246611933495e-07,
+      "tiedAtZero": 0.509090909090909,
+      "usable": true
+     },
+     {
+      "label": "Beat 'em up",
+      "nF2p": 19,
+      "nPaid": 198,
+      "medianF2p": 0.0,
+      "medianPaid": 2.8571428571428573e-06,
+      "delta": -0.11297182349813928,
+      "p": 0.3864177003861212,
+      "tiedAtZero": 0.4976958525345622,
+      "usable": true
+     },
+     {
+      "label": "Strategy",
+      "nF2p": 52,
+      "nPaid": 159,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": 0.011369134010643434,
+      "p": 0.8890475144554805,
+      "tiedAtZero": 0.6208530805687204,
+      "usable": true
+     },
+     {
+      "label": "Open World Survival Craft",
+      "nF2p": 15,
+      "nPaid": 182,
+      "medianF2p": 2.857142857142857e-05,
+      "medianPaid": 0.00011047619047619047,
+      "delta": -0.256043956043956,
+      "p": 0.09950687158746284,
+      "tiedAtZero": 0.14720812182741116,
+      "usable": true
+     },
+     {
+      "label": "Space Sim",
+      "nF2p": 20,
+      "nPaid": 172,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.06075581395348839,
+      "p": 0.6267765772271339,
+      "tiedAtZero": 0.5572916666666666,
+      "usable": true
+     },
+     {
+      "label": "Life Sim",
+      "nF2p": 15,
+      "nPaid": 166,
+      "medianF2p": 1.1428571428571429e-05,
+      "medianPaid": 8.571428571428571e-05,
+      "delta": -0.3048192771084337,
+      "p": 0.049221459863059855,
+      "tiedAtZero": 0.2541436464088398,
+      "usable": true
+     },
+     {
+      "label": "Dating Sim",
+      "nF2p": 15,
+      "nPaid": 162,
+      "medianF2p": 1.4285714285714285e-05,
+      "medianPaid": 2.857142857142857e-05,
+      "delta": -0.0004115226337448874,
+      "p": 1.0,
+      "tiedAtZero": 0.3502824858757062,
+      "usable": true
+     },
+     {
+      "label": "Racing",
+      "nF2p": 24,
+      "nPaid": 137,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.17944038929440387,
+      "p": 0.12508915660270786,
+      "tiedAtZero": 0.5527950310559007,
+      "usable": true
+     },
+     {
+      "label": "Rhythm",
+      "nF2p": 20,
+      "nPaid": 141,
+      "medianF2p": 0.0,
+      "medianPaid": 2.8571428571428573e-06,
+      "delta": -0.17907801418439717,
+      "p": 0.16557289311953918,
+      "tiedAtZero": 0.5093167701863354,
+      "usable": true
+     },
+     {
+      "label": "Precision Platformer",
+      "nF2p": 17,
+      "nPaid": 136,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": 0.016003460207612452,
+      "p": 0.8904099928362019,
+      "tiedAtZero": 0.7516339869281046,
+      "usable": true
+     },
+     {
+      "label": "RPG",
+      "nF2p": 33,
+      "nPaid": 119,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.026483320600967697,
+      "p": 0.7642551477958965,
+      "tiedAtZero": 0.743421052631579,
+      "usable": true
+     },
+     {
+      "label": "Tactical RPG",
+      "nF2p": 13,
+      "nPaid": 132,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.1853146853146853,
+      "p": 0.22546296270187205,
+      "tiedAtZero": 0.5655172413793104,
+      "usable": true
+     },
+     {
+      "label": "Idler",
+      "nF2p": 41,
+      "nPaid": 100,
+      "medianF2p": 0.0005714285714285715,
+      "medianPaid": 8.428571428571429e-05,
+      "delta": 0.2941463414634147,
+      "p": 0.005731850997638266,
+      "tiedAtZero": 0.2695035460992908,
+      "usable": true
+     },
+     {
+      "label": "Twin Stick Shooter",
+      "nF2p": 14,
+      "nPaid": 126,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.05668934240362811,
+      "p": 0.6932435011792866,
+      "tiedAtZero": 0.6214285714285714,
+      "usable": true
+     },
+     {
+      "label": "MMORPG",
+      "nF2p": 106,
+      "nPaid": 32,
+      "medianF2p": 4.6142857142857145e-05,
+      "medianPaid": 8.5e-05,
+      "delta": -0.09640330188679247,
+      "p": 0.40764250976316296,
+      "tiedAtZero": 0.2391304347826087,
+      "usable": true
+     },
+     {
+      "label": "Party-Based RPG",
+      "nF2p": 13,
+      "nPaid": 105,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.1186813186813187,
+      "p": 0.4391827132040909,
+      "tiedAtZero": 0.5847457627118644,
+      "usable": true
+     },
+     {
+      "label": "Wargame",
+      "nF2p": 16,
+      "nPaid": 99,
+      "medianF2p": 1.9999999999999998e-05,
+      "medianPaid": 4e-05,
+      "delta": -0.06818181818181823,
+      "p": 0.6585577149442584,
+      "tiedAtZero": 0.34782608695652173,
+      "usable": true
+     },
+     {
+      "label": "Sports",
+      "nF2p": 18,
+      "nPaid": 80,
+      "medianF2p": 0.0,
+      "medianPaid": 2.857142857142857e-05,
+      "delta": -0.2833333333333333,
+      "p": 0.05483970357485758,
+      "tiedAtZero": 0.37755102040816324,
+      "usable": true
+     },
+     {
+      "label": "Card Battler",
+      "nF2p": 20,
+      "nPaid": 64,
+      "medianF2p": 9.999999999999999e-06,
+      "medianPaid": 5.523809523809524e-05,
+      "delta": -0.27578125,
+      "p": 0.06058006274815582,
+      "tiedAtZero": 0.30952380952380953,
+      "usable": true
+     },
+     {
+      "label": "Real Time Tactics",
+      "nF2p": 14,
+      "nPaid": 66,
+      "medianF2p": 2.6666666666666667e-05,
+      "medianPaid": 3.428571428571429e-05,
+      "delta": -0.11255411255411252,
+      "p": 0.4987984232782195,
+      "tiedAtZero": 0.4125,
+      "usable": true
+     },
+     {
+      "label": "Battle Royale",
+      "nF2p": 38,
+      "nPaid": 39,
+      "medianF2p": 1.4285714285714286e-06,
+      "medianPaid": 0.0,
+      "delta": 0.09851551956815108,
+      "p": 0.4163030489106745,
+      "tiedAtZero": 0.5584415584415584,
+      "usable": true
+     },
+     {
+      "label": "Deckbuilding",
+      "nF2p": 12,
+      "nPaid": 53,
+      "medianF2p": 7.047619047619048e-05,
+      "medianPaid": 6.666666666666667e-05,
+      "delta": -0.12421383647798745,
+      "p": 0.507402727257442,
+      "tiedAtZero": 0.2153846153846154,
+      "usable": true
+     },
+     {
+      "label": "MOBA",
+      "nF2p": 37,
+      "nPaid": 13,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": 0.3284823284823284,
+      "p": 0.046660064497094436,
+      "tiedAtZero": 0.62,
+      "usable": true
+     },
+     {
+      "label": "Football (Soccer)",
+      "nF2p": 12,
+      "nPaid": 33,
+      "medianF2p": 2.3333333333333336e-05,
+      "medianPaid": 1.3333333333333333e-05,
+      "delta": 0.10353535353535359,
+      "p": 0.5934282959723517,
+      "tiedAtZero": 0.4222222222222222,
+      "usable": true
+     },
+     {
+      "label": "Hero Shooter",
+      "nF2p": 11,
+      "nPaid": 33,
+      "medianF2p": 2.8571428571428573e-06,
+      "medianPaid": 0.0,
+      "delta": 0.3278236914600552,
+      "p": 0.035478794005280825,
+      "tiedAtZero": 0.75,
+      "usable": true
+     },
+     {
+      "label": "Horror",
+      "nF2p": 18,
+      "nPaid": 26,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": 0.17948717948717952,
+      "p": 0.15977787283556236,
+      "tiedAtZero": 0.7954545454545454,
+      "usable": true
+     }
+    ],
+    "priceBands": [
+     {
+      "band": "0-10",
+      "n": 8285,
+      "median": 0.0
+     },
+     {
+      "band": "10-30",
+      "n": 7431,
+      "median": 1.3333333333333333e-05
+     },
+     {
+      "band": "30-60",
+      "n": 1631,
+      "median": 0.00012
+     },
+     {
+      "band": "60+",
+      "n": 352,
+      "median": 0.0003386666666666667
+     }
+    ]
+   },
+   "upper": {
+    "naive": {
+     "label": "ALL GAMES (naive)",
+     "nF2p": 3062,
+     "nPaid": 17699,
+     "medianF2p": 0.0,
+     "medianPaid": 0.0,
+     "delta": -0.10839195046537886,
+     "p": 1.3600027598575667e-25,
+     "tiedAtZero": 0.5409180675304658,
+     "usable": true
+    },
+    "adjustedDelta": -0.09145932303804707,
+    "usableGenres": 59,
+    "byGenre": [
+     {
+      "label": "FPS",
+      "nF2p": 202,
+      "nPaid": 916,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.055114790955077986,
+      "p": 0.1796120292054565,
+      "tiedAtZero": 0.5465116279069767,
+      "usable": true
+     },
+     {
+      "label": "Visual Novel",
+      "nF2p": 167,
+      "nPaid": 844,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.18985015750489542,
+      "p": 2.3256583887792383e-05,
+      "tiedAtZero": 0.5400593471810089,
+      "usable": true
+     },
+     {
+      "label": "Casual",
+      "nF2p": 185,
+      "nPaid": 759,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": 0.026243634939287164,
+      "p": 0.4612580881394231,
+      "tiedAtZero": 0.7574152542372882,
+      "usable": true
+     },
+     {
+      "label": "Psychological Horror",
+      "nF2p": 123,
+      "nPaid": 803,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": 0.022031204122751058,
+      "p": 0.6651418465007402,
+      "tiedAtZero": 0.5561555075593952,
+      "usable": true
+     },
+     {
+      "label": "Point & Click",
+      "nF2p": 107,
+      "nPaid": 760,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.08239055582882437,
+      "p": 0.12490940324558841,
+      "tiedAtZero": 0.5743944636678201,
+      "usable": true
+     },
+     {
+      "label": "Action",
+      "nF2p": 223,
+      "nPaid": 620,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.08902791841458124,
+      "p": 0.008493142916523318,
+      "tiedAtZero": 0.7591933570581257,
+      "usable": true
+     },
+     {
+      "label": "Action-Adventure",
+      "nF2p": 71,
+      "nPaid": 672,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.1856975184439973,
+      "p": 0.002909688872908452,
+      "tiedAtZero": 0.6312247644683715,
+      "usable": true
+     },
+     {
+      "label": "JRPG",
+      "nF2p": 45,
+      "nPaid": 628,
+      "medianF2p": 0.0,
+      "medianPaid": 1e-05,
+      "delta": -0.30774946921443735,
+      "p": 0.0002759940849394478,
+      "tiedAtZero": 0.462109955423477,
+      "usable": true
+     },
+     {
+      "label": "Survival Horror",
+      "nF2p": 63,
+      "nPaid": 446,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.00690440600754505,
+      "p": 0.9221532038237517,
+      "tiedAtZero": 0.5677799607072691,
+      "usable": true
+     },
+     {
+      "label": "Action RPG",
+      "nF2p": 50,
+      "nPaid": 437,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.21386727688787188,
+      "p": 0.0070475270270996355,
+      "tiedAtZero": 0.5359342915811088,
+      "usable": true
+     },
+     {
+      "label": "Adventure",
+      "nF2p": 130,
+      "nPaid": 344,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.09955277280858676,
+      "p": 0.027051340840619276,
+      "tiedAtZero": 0.7531645569620253,
+      "usable": true
+     },
+     {
+      "label": "3D Platformer",
+      "nF2p": 74,
+      "nPaid": 383,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.21702773269352904,
+      "p": 0.0005177144796418377,
+      "tiedAtZero": 0.649890590809628,
+      "usable": true
+     },
+     {
+      "label": "Turn-Based Strategy",
+      "nF2p": 41,
+      "nPaid": 398,
+      "medianF2p": 0.0,
+      "medianPaid": 1.1e-05,
+      "delta": -0.34495648976590265,
+      "p": 0.00012309987513654938,
+      "tiedAtZero": 0.46697038724373574,
+      "usable": true
+     },
+     {
+      "label": "Hidden Object",
+      "nF2p": 33,
+      "nPaid": 402,
+      "medianF2p": 2e-06,
+      "medianPaid": 0.0,
+      "delta": 0.11518166742047331,
+      "p": 0.21704149063943862,
+      "tiedAtZero": 0.5885057471264368,
+      "usable": true
+     },
+     {
+      "label": "Bullet Hell",
+      "nF2p": 44,
+      "nPaid": 385,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.17981109799291617,
+      "p": 0.029563746973447064,
+      "tiedAtZero": 0.578088578088578,
+      "usable": true
+     },
+     {
+      "label": "2D Platformer",
+      "nF2p": 62,
+      "nPaid": 349,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.18014603937517326,
+      "p": 0.007824951022873984,
+      "tiedAtZero": 0.6520681265206812,
+      "usable": true
+     },
+     {
+      "label": "Shoot 'Em Up",
+      "nF2p": 27,
+      "nPaid": 371,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.026355196166516937,
+      "p": 0.7709820582737152,
+      "tiedAtZero": 0.7286432160804021,
+      "usable": true
+     },
+     {
+      "label": "Walking Simulator",
+      "nF2p": 45,
+      "nPaid": 337,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.1399274645565447,
+      "p": 0.08791164490036914,
+      "tiedAtZero": 0.5863874345549738,
+      "usable": true
+     },
+     {
+      "label": "City Builder",
+      "nF2p": 34,
+      "nPaid": 319,
+      "medianF2p": 9e-06,
+      "medianPaid": 6e-05,
+      "delta": -0.21980453623455654,
+      "p": 0.03375566006459208,
+      "tiedAtZero": 0.24645892351274787,
+      "usable": true
+     },
+     {
+      "label": "Interactive Fiction",
+      "nF2p": 36,
+      "nPaid": 315,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.187037037037037,
+      "p": 0.028399262291525045,
+      "tiedAtZero": 0.6666666666666666,
+      "usable": true
+     },
+     {
+      "label": "Turn-Based Tactics",
+      "nF2p": 35,
+      "nPaid": 311,
+      "medianF2p": 0.0,
+      "medianPaid": 6e-06,
+      "delta": -0.19182361047312813,
+      "p": 0.047255695439216,
+      "tiedAtZero": 0.49421965317919075,
+      "usable": true
+     },
+     {
+      "label": "Hack and Slash",
+      "nF2p": 38,
+      "nPaid": 297,
+      "medianF2p": 0.0,
+      "medianPaid": 1e-05,
+      "delta": -0.2744993797625377,
+      "p": 0.0041848619461538235,
+      "tiedAtZero": 0.4208955223880597,
+      "usable": true
+     },
+     {
+      "label": "Simulation",
+      "nF2p": 77,
+      "nPaid": 244,
+      "medianF2p": 0.0,
+      "medianPaid": 1e-05,
+      "delta": -0.1746327443048754,
+      "p": 0.014725694635371954,
+      "tiedAtZero": 0.4672897196261682,
+      "usable": true
+     },
+     {
+      "label": "RTS",
+      "nF2p": 41,
+      "nPaid": 262,
+      "medianF2p": 0.0,
+      "medianPaid": 2e-05,
+      "delta": -0.2442748091603053,
+      "p": 0.010247468848992266,
+      "tiedAtZero": 0.3432343234323432,
+      "usable": true
+     },
+     {
+      "label": "Dungeon Crawler",
+      "nF2p": 14,
+      "nPaid": 286,
+      "medianF2p": 0.0,
+      "medianPaid": 5e-06,
+      "delta": -0.26473526473526476,
+      "p": 0.07514293461396904,
+      "tiedAtZero": 0.49,
+      "usable": true
+     },
+     {
+      "label": "Tower Defense",
+      "nF2p": 38,
+      "nPaid": 261,
+      "medianF2p": 0.0,
+      "medianPaid": 2e-06,
+      "delta": -0.11272433958459371,
+      "p": 0.23076576710852598,
+      "tiedAtZero": 0.4983277591973244,
+      "usable": true
+     },
+     {
+      "label": "Choose Your Own Adventure",
+      "nF2p": 32,
+      "nPaid": 248,
+      "medianF2p": 4.9999999999999996e-06,
+      "medianPaid": 0.0,
+      "delta": 0.13596270161290325,
+      "p": 0.15137266656465895,
+      "tiedAtZero": 0.6214285714285714,
+      "usable": true
+     },
+     {
+      "label": "Third-Person Shooter",
+      "nF2p": 37,
+      "nPaid": 229,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.17183996223297537,
+      "p": 0.06929095963819765,
+      "tiedAtZero": 0.5300751879699248,
+      "usable": true
+     },
+     {
+      "label": "Metroidvania",
+      "nF2p": 14,
+      "nPaid": 229,
+      "medianF2p": 0.0,
+      "medianPaid": 1.1e-05,
+      "delta": -0.3571428571428571,
+      "p": 0.021866076820857935,
+      "tiedAtZero": 0.35390946502057613,
+      "usable": true
+     },
+     {
+      "label": "Automobile Sim",
+      "nF2p": 16,
+      "nPaid": 223,
+      "medianF2p": 2e-06,
+      "medianPaid": 4.8e-05,
+      "delta": -0.40106502242152464,
+      "p": 0.006915151773467394,
+      "tiedAtZero": 0.2594142259414226,
+      "usable": true
+     },
+     {
+      "label": "Immersive Sim",
+      "nF2p": 11,
+      "nPaid": 222,
+      "medianF2p": 0.0,
+      "medianPaid": 4.1e-05,
+      "delta": -0.4447174447174447,
+      "p": 0.01185312940285296,
+      "tiedAtZero": 0.2875536480686695,
+      "usable": true
+     },
+     {
+      "label": "Arena Shooter",
+      "nF2p": 44,
+      "nPaid": 182,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": 0.1547202797202798,
+      "p": 0.02138658665774246,
+      "tiedAtZero": 0.8053097345132744,
+      "usable": true
+     },
+     {
+      "label": "Puzzle",
+      "nF2p": 36,
+      "nPaid": 185,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.05435435435435432,
+      "p": 0.5582588540470781,
+      "tiedAtZero": 0.6108597285067874,
+      "usable": true
+     },
+     {
+      "label": "Clicker",
+      "nF2p": 72,
+      "nPaid": 148,
+      "medianF2p": 2.2e-05,
+      "medianPaid": 0.0,
+      "delta": 0.4136636636636637,
+      "p": 9.298509714798883e-08,
+      "tiedAtZero": 0.509090909090909,
+      "usable": true
+     },
+     {
+      "label": "Beat 'em up",
+      "nF2p": 19,
+      "nPaid": 198,
+      "medianF2p": 0.0,
+      "medianPaid": 2e-06,
+      "delta": -0.11084529505582141,
+      "p": 0.3954092305919632,
+      "tiedAtZero": 0.4976958525345622,
+      "usable": true
+     },
+     {
+      "label": "Strategy",
+      "nF2p": 52,
+      "nPaid": 159,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": 0.013062409288824295,
+      "p": 0.8724664134167481,
+      "tiedAtZero": 0.6208530805687204,
+      "usable": true
+     },
+     {
+      "label": "Open World Survival Craft",
+      "nF2p": 15,
+      "nPaid": 182,
+      "medianF2p": 2e-05,
+      "medianPaid": 8e-05,
+      "delta": -0.2593406593406593,
+      "p": 0.09520365184035219,
+      "tiedAtZero": 0.14720812182741116,
+      "usable": true
+     },
+     {
+      "label": "Space Sim",
+      "nF2p": 20,
+      "nPaid": 172,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.05959302325581395,
+      "p": 0.633393701290929,
+      "tiedAtZero": 0.5572916666666666,
+      "usable": true
+     },
+     {
+      "label": "Life Sim",
+      "nF2p": 15,
+      "nPaid": 166,
+      "medianF2p": 8e-06,
+      "medianPaid": 6e-05,
+      "delta": -0.30361445783132535,
+      "p": 0.050093358043459886,
+      "tiedAtZero": 0.2541436464088398,
+      "usable": true
+     },
+     {
+      "label": "Dating Sim",
+      "nF2p": 15,
+      "nPaid": 162,
+      "medianF2p": 1e-05,
+      "medianPaid": 2e-05,
+      "delta": -0.004526748971193428,
+      "p": 0.9784974288857682,
+      "tiedAtZero": 0.3502824858757062,
+      "usable": true
+     },
+     {
+      "label": "Racing",
+      "nF2p": 24,
+      "nPaid": 137,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.17944038929440387,
+      "p": 0.12498329699548226,
+      "tiedAtZero": 0.5527950310559007,
+      "usable": true
+     },
+     {
+      "label": "Rhythm",
+      "nF2p": 20,
+      "nPaid": 141,
+      "medianF2p": 0.0,
+      "medianPaid": 2e-06,
+      "delta": -0.174822695035461,
+      "p": 0.17580737074638011,
+      "tiedAtZero": 0.5093167701863354,
+      "usable": true
+     },
+     {
+      "label": "Precision Platformer",
+      "nF2p": 17,
+      "nPaid": 136,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": 0.016003460207612452,
+      "p": 0.8904098342460262,
+      "tiedAtZero": 0.7516339869281046,
+      "usable": true
+     },
+     {
+      "label": "RPG",
+      "nF2p": 33,
+      "nPaid": 119,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.026228673287496784,
+      "p": 0.7664498003915134,
+      "tiedAtZero": 0.743421052631579,
+      "usable": true
+     },
+     {
+      "label": "Tactical RPG",
+      "nF2p": 13,
+      "nPaid": 132,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.1853146853146853,
+      "p": 0.22545292834449798,
+      "tiedAtZero": 0.5655172413793104,
+      "usable": true
+     },
+     {
+      "label": "Idler",
+      "nF2p": 41,
+      "nPaid": 100,
+      "medianF2p": 0.0004,
+      "medianPaid": 5.9e-05,
+      "delta": 0.2941463414634147,
+      "p": 0.00573110950122277,
+      "tiedAtZero": 0.2695035460992908,
+      "usable": true
+     },
+     {
+      "label": "Twin Stick Shooter",
+      "nF2p": 14,
+      "nPaid": 126,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.05442176870748294,
+      "p": 0.7049823412089395,
+      "tiedAtZero": 0.6214285714285714,
+      "usable": true
+     },
+     {
+      "label": "MMORPG",
+      "nF2p": 106,
+      "nPaid": 32,
+      "medianF2p": 3.23e-05,
+      "medianPaid": 5.9499999999999996e-05,
+      "delta": -0.09551886792452835,
+      "p": 0.4119551598007608,
+      "tiedAtZero": 0.2391304347826087,
+      "usable": true
+     },
+     {
+      "label": "Party-Based RPG",
+      "nF2p": 13,
+      "nPaid": 105,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": -0.11721611721611724,
+      "p": 0.44482710570842493,
+      "tiedAtZero": 0.5847457627118644,
+      "usable": true
+     },
+     {
+      "label": "Wargame",
+      "nF2p": 16,
+      "nPaid": 99,
+      "medianF2p": 1.5000000000000002e-05,
+      "medianPaid": 3e-05,
+      "delta": -0.06313131313131315,
+      "p": 0.6826011284056945,
+      "tiedAtZero": 0.34782608695652173,
+      "usable": true
+     },
+     {
+      "label": "Sports",
+      "nF2p": 18,
+      "nPaid": 80,
+      "medianF2p": 0.0,
+      "medianPaid": 2e-05,
+      "delta": -0.2847222222222222,
+      "p": 0.053579079685181275,
+      "tiedAtZero": 0.37755102040816324,
+      "usable": true
+     },
+     {
+      "label": "Card Battler",
+      "nF2p": 20,
+      "nPaid": 64,
+      "medianF2p": 7.500000000000001e-06,
+      "medianPaid": 4e-05,
+      "delta": -0.27109375,
+      "p": 0.0650551231287507,
+      "tiedAtZero": 0.30952380952380953,
+      "usable": true
+     },
+     {
+      "label": "Real Time Tactics",
+      "nF2p": 14,
+      "nPaid": 66,
+      "medianF2p": 2e-05,
+      "medianPaid": 2.5e-05,
+      "delta": -0.1028138528138528,
+      "p": 0.5368932501132846,
+      "tiedAtZero": 0.4125,
+      "usable": true
+     },
+     {
+      "label": "Battle Royale",
+      "nF2p": 38,
+      "nPaid": 39,
+      "medianF2p": 1e-06,
+      "medianPaid": 0.0,
+      "delta": 0.10053981106612686,
+      "p": 0.4067182617193416,
+      "tiedAtZero": 0.5584415584415584,
+      "usable": true
+     },
+     {
+      "label": "Deckbuilding",
+      "nF2p": 12,
+      "nPaid": 53,
+      "medianF2p": 5.2000000000000004e-05,
+      "medianPaid": 5e-05,
+      "delta": -0.12421383647798745,
+      "p": 0.5072432485382834,
+      "tiedAtZero": 0.2153846153846154,
+      "usable": true
+     },
+     {
+      "label": "MOBA",
+      "nF2p": 37,
+      "nPaid": 13,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": 0.3284823284823284,
+      "p": 0.046660064497094436,
+      "tiedAtZero": 0.62,
+      "usable": true
+     },
+     {
+      "label": "Football (Soccer)",
+      "nF2p": 12,
+      "nPaid": 33,
+      "medianF2p": 1.7500000000000002e-05,
+      "medianPaid": 1e-05,
+      "delta": 0.10858585858585856,
+      "p": 0.5750918458339427,
+      "tiedAtZero": 0.4222222222222222,
+      "usable": true
+     },
+     {
+      "label": "Hero Shooter",
+      "nF2p": 11,
+      "nPaid": 33,
+      "medianF2p": 2e-06,
+      "medianPaid": 0.0,
+      "delta": 0.3278236914600552,
+      "p": 0.035478794005280825,
+      "tiedAtZero": 0.75,
+      "usable": true
+     },
+     {
+      "label": "Horror",
+      "nF2p": 18,
+      "nPaid": 26,
+      "medianF2p": 0.0,
+      "medianPaid": 0.0,
+      "delta": 0.17948717948717952,
+      "p": 0.15977787283556236,
+      "tiedAtZero": 0.7954545454545454,
+      "usable": true
+     }
+    ],
+    "priceBands": [
+     {
+      "band": "0-10",
+      "n": 8285,
+      "median": 0.0
+     },
+     {
+      "band": "10-30",
+      "n": 7431,
+      "median": 1e-05
+     },
+     {
+      "band": "30-60",
+      "n": 1631,
+      "median": 9e-05
+     },
+     {
+      "band": "60+",
+      "n": 352,
+      "median": 0.0002435
+     }
+    ]
+   }
+  }
+ }
+}</script>
+<script>
+const DATA = JSON.parse(document.getElementById("payload").textContent);
+let metric = "playtime", bound = "midpoint";
+let sortKey = "delta", sortDir = 1;
+
+// Round half to even, matching Python's format spec. Math.round rounds half up,
+// which made the dashboard read 125 where the report, deck and case study all
+// say 124 - the true median is 124.5. One minute is trivial; four deliverables
+// disagreeing with each other is not.
+function roundHalfEven(v) {
+  const f = Math.floor(v);
+  const diff = v - f;
+  if (diff > 0.5) return f + 1;
+  if (diff < 0.5) return f;
+  return f % 2 === 0 ? f : f + 1;
+}
+const fmt = (v) => v === null || v === undefined ? "—"
+  : metric === "playtime" ? roundHalfEven(v).toLocaleString()
+  : v === 0 ? "0" : v.toExponential(2);
+const sign = (v) => (v > 0 ? "+" : "\u2212") + Math.abs(v).toFixed(3);
+
+function deltaBar(d) {
+  const w = Math.min(Math.abs(d), 1) * 50;
+  const left = d < 0 ? 50 - w : 50;
+  const colour = d < 0 ? "var(--paid)" : "var(--free)";
+  return `<div class="bar"><span class="zero" style="left:50%"></span>
+    <i style="left:${left}%;width:${w}%;background:${colour}"></i></div>`;
+}
+
+function render() {
+  const m = DATA.metrics[metric][bound];
+  const c = DATA.cohort;
+
+  document.getElementById("naive").textContent = sign(m.naive.delta);
+  document.getElementById("adjusted").textContent = m.adjustedDelta === null ? "—" : sign(m.adjustedDelta);
+  document.getElementById("adjusted-sub").textContent =
+    `genre-adjusted — ${m.usableGenres} genres`;
+
+  // A metric that is mostly ties shows medians of 0, which reads as broken rather
+  // than as the finding it is. Say so on the face of the page.
+  const ties = m.naive.tiedAtZero;
+  document.getElementById("ties").textContent = ties >= 0.2
+    ? `${Math.round(ties * 100)}% of this metric's values are exactly zero, so the medians read 0 and the rank test is mostly ties. That is why playtime carries the headline and this is only a cross-check.`
+    : "";
+
+  const moved = m.adjustedDelta - m.naive.delta;
+  document.getElementById("moved").textContent = moved < 0
+    ? `Adjusting for genre moved the result ${Math.abs(moved).toFixed(3)} further from zero. The correction was meant to shrink the gap; it widened it.`
+    : `Adjusting for genre moved the result ${Math.abs(moved).toFixed(3)} toward zero.`;
+
+  document.getElementById("stats").innerHTML = [
+    [fmt(m.naive.medianF2p), "median, free games"],
+    [fmt(m.naive.medianPaid), "median, paid games"],
+    [m.naive.nF2p.toLocaleString() + " / " + m.naive.nPaid.toLocaleString(), "games compared (free / paid)"],
+    [c.games.toLocaleString(), "games in the cohort"],
+  ].map(([v, l]) => `<div class="stat panel"><div class="v">${v}</div><div class="l">${l}</div></div>`).join("");
+
+  const rows = [...m.byGenre].sort((a, b) => {
+    const x = a[sortKey], y = b[sortKey];
+    return (typeof x === "string" ? x.localeCompare(y) : x - y) * sortDir;
+  });
+  document.querySelector("#genres tbody").innerHTML = rows.map((g) => `<tr>
+    <td>${g.label}</td><td class="num">${g.nF2p}</td><td class="num">${g.nPaid}</td>
+    <td class="num">${fmt(g.medianF2p)}</td><td class="num">${fmt(g.medianPaid)}</td>
+    <td>${deltaBar(g.delta)}</td></tr>`).join("");
+
+  const maxBand = Math.max(...m.priceBands.map((b) => b.median || 0)) || 1;
+  document.querySelector("#bands tbody").innerHTML = m.priceBands.map((b) => `<tr>
+    <td>${b.band}</td><td class="num">${b.n.toLocaleString()}</td><td class="num">${fmt(b.median)}</td>
+    <td><div class="bar"><i style="left:0;width:${((b.median || 0) / maxBand) * 100}%;background:var(--paid)"></i></div></td>
+    </tr>`).join("");
+
+  const a = DATA.attrition;
+  document.getElementById("uncertainty").innerHTML =
+    `<strong>Attrition is uneven.</strong> ${(c.sampled - c.usable).toLocaleString()} of the
+     ${c.sampled.toLocaleString()} sampled games had too few reviewers for a median and were dropped
+     rather than given one on thin evidence — ${(a.paid.rate * 100).toFixed(1)}% of paid games against
+     ${(a.f2p.rate * 100).toFixed(1)}% of free ones. The paid sample therefore lost more of its small
+     titles, and small titles plausibly play shorter, so the gap above is more likely overstated than
+     understated.`;
+
+  document.getElementById("generated").textContent = DATA.generated;
+
+  // Medians are shown rounded; the unrounded pair is stated so the whole-minute
+  // figures quoted in the report and case study can be checked against it.
+  document.getElementById("exact").textContent = metric === "playtime"
+    ? ` · Exact medians: ${m.naive.medianF2p} free, ${m.naive.medianPaid} paid (minutes).`
+    : "";
+}
+
+for (const b of document.querySelectorAll("[data-metric]")) {
+  b.onclick = () => {
+    metric = b.dataset.metric;
+    document.querySelectorAll("[data-metric]").forEach((x) =>
+      x.setAttribute("aria-pressed", String(x === b)));
+    render();
+  };
+}
+for (const b of document.querySelectorAll("[data-bound]")) {
+  b.onclick = () => {
+    bound = b.dataset.bound;
+    document.querySelectorAll("[data-bound]").forEach((x) =>
+      x.setAttribute("aria-pressed", String(x === b)));
+    render();
+  };
+}
+for (const th of document.querySelectorAll("#genres th[data-sort]")) {
+  th.onclick = () => {
+    const key = th.dataset.sort;
+    sortDir = key === sortKey ? -sortDir : 1;
+    sortKey = key;
+    render();
+  };
+}
+render();
+</script>
+</body>
+</html>
